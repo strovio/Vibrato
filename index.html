@@ -43,136 +43,77 @@
       width: 100%;
       height: 100%;
     }
-    @keyframes pulseRing {
-      0% { transform: scale(0.95); opacity: 0.7; }
-      50% { transform: scale(1.06); opacity: 0.3; }
-      100% { transform: scale(0.95); opacity: 0.7; }
-    }
-    .pulse-ring {
-      animation: pulseRing 2.4s infinite ease-in-out;
-    }
   </style>
 </head>
-<body class="relative w-full h-full select-none bg-[#07090e]">
+<body class="relative w-full h-full select-none bg-[#080b10]">
 
-  <!-- Единственный полноэкранный холст визуализации -->
+  <!-- Единственный полноэкранный холст -->
   <canvas id="vibratoCanvas" class="w-full h-full cursor-pointer"></canvas>
 
-  <!-- Интегрированная верхняя панель телеметрии (часть единого поля графика, без кнопок и слайдеров) -->
-  <div id="hudOverlay" class="pointer-events-none fixed inset-x-0 top-0 z-10 p-2.5 sm:p-4 flex flex-col gap-2">
-    <div class="grid grid-cols-4 gap-1.5 sm:gap-3 max-w-5xl mx-auto w-full">
-      
-      <!-- 1. Центр интонации (Нота) -->
-      <div class="bg-[#0d121d]/85 backdrop-blur-md border border-slate-800/80 rounded-xl px-2.5 py-2 sm:px-3.5 sm:py-2.5 shadow-lg">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-400">Центр тона</span>
-          <span id="hudNoteHz" class="text-[10px] sm:text-xs font-mono-num text-slate-500">— Гц</span>
-        </div>
-        <div class="mt-0.5 flex items-baseline gap-1.5">
-          <span id="hudNoteName" class="text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-white">—</span>
-          <span id="hudNoteCents" class="text-xs sm:text-sm font-mono-num font-semibold text-slate-400">0¢</span>
-        </div>
-        <div id="hudIntonationStatus" class="mt-0.5 text-[10px] sm:text-xs text-slate-400 truncate">Ожидание голоса</div>
+  <!-- Лаконичная верхняя строка показателей без карточек и лишних подписей -->
+  <div id="hudOverlay" class="pointer-events-none fixed inset-x-0 top-0 z-10 px-4 py-3 bg-gradient-to-b from-[#080b10] via-[#080b10]/85 to-transparent">
+    <div class="grid grid-cols-4 gap-2 max-w-3xl mx-auto text-center">
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-slate-500">Нота</div>
+        <div id="hudNoteName" class="text-2xl sm:text-3xl font-bold font-mono-num text-white">—</div>
       </div>
-
-      <!-- 2. Периодичность (Частота вибрато, Гц) -->
-      <div class="bg-[#0d121d]/85 backdrop-blur-md border border-slate-800/80 rounded-xl px-2.5 py-2 sm:px-3.5 sm:py-2.5 shadow-lg">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-400">Периодичность</span>
-          <span class="text-[10px] sm:text-xs font-mono-num text-slate-500">5.0–7.0 Гц</span>
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-slate-500">Частота</div>
+        <div class="flex items-baseline justify-center gap-1">
+          <span id="hudRateValue" class="text-2xl sm:text-3xl font-bold font-mono-num text-slate-300">—</span>
+          <span class="text-xs text-slate-500 font-mono-num">Гц</span>
         </div>
-        <div class="mt-0.5 flex items-baseline gap-1">
-          <span id="hudRateValue" class="text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-white">—</span>
-          <span class="text-xs sm:text-sm font-mono-num text-slate-400">Гц</span>
-        </div>
-        <div id="hudRateStatus" class="mt-0.5 text-[10px] sm:text-xs text-slate-400 truncate">Норма: 5.5–6.5 Гц</div>
       </div>
-
-      <!-- 3. Широта (Размах вибрато, ± центы) -->
-      <div class="bg-[#0d121d]/85 backdrop-blur-md border border-slate-800/80 rounded-xl px-2.5 py-2 sm:px-3.5 sm:py-2.5 shadow-lg">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-400">Широта</span>
-          <span id="hudWidthSemitones" class="text-[10px] sm:text-xs font-mono-num text-slate-500">±0.5 пт</span>
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-slate-500">Широта</div>
+        <div class="flex items-baseline justify-center gap-0.5">
+          <span id="hudWidthValue" class="text-2xl sm:text-3xl font-bold font-mono-num text-slate-300">—</span>
+          <span class="text-xs text-slate-500 font-mono-num">¢</span>
         </div>
-        <div class="mt-0.5 flex items-baseline gap-1">
-          <span id="hudWidthValue" class="text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-white">—</span>
-          <span class="text-xs sm:text-sm font-mono-num text-slate-400">¢</span>
-        </div>
-        <div id="hudWidthStatus" class="mt-0.5 text-[10px] sm:text-xs text-slate-400 truncate">Эталон: ±35…75¢</div>
       </div>
-
-      <!-- 4. Стабильность (Регулярность периода и амплитуды) -->
-      <div class="bg-[#0d121d]/85 backdrop-blur-md border border-slate-800/80 rounded-xl px-2.5 py-2 sm:px-3.5 sm:py-2.5 shadow-lg">
-        <div class="flex items-center justify-between">
-          <span class="text-[10px] sm:text-xs font-medium uppercase tracking-wider text-slate-400">Стабильность</span>
-          <span id="hudCyclesCount" class="text-[10px] sm:text-xs font-mono-num text-slate-500">0 цикл.</span>
+      <div>
+        <div class="text-[10px] uppercase tracking-wider text-slate-500">Ровность</div>
+        <div class="flex items-baseline justify-center gap-0.5">
+          <span id="hudStabilityValue" class="text-2xl sm:text-3xl font-bold font-mono-num text-slate-300">—</span>
+          <span class="text-xs text-slate-500 font-mono-num">%</span>
         </div>
-        <div class="mt-0.5 flex items-baseline gap-1">
-          <span id="hudStabilityValue" class="text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-white">—</span>
-          <span class="text-xs sm:text-sm font-mono-num text-slate-400">%</span>
-        </div>
-        <div id="hudStabilityStatus" class="mt-0.5 text-[10px] sm:text-xs text-slate-400 truncate">Ровность волны</div>
       </div>
-
     </div>
   </div>
 
-  <!-- Стартовый экран-подсказка (необходим жест пользователя для активации микрофона в мобильном браузере) -->
-  <div id="startOverlay" class="fixed inset-0 z-20 flex items-center justify-center bg-[#07090e]/80 backdrop-blur-sm px-6 cursor-pointer transition-opacity duration-300">
-    <div class="max-w-sm w-full bg-[#0f1624] border border-slate-800 rounded-2xl p-6 text-center shadow-2xl">
-      <div class="relative mx-auto w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/40 flex items-center justify-center mb-4">
-        <div class="absolute inset-0 rounded-full border border-emerald-400/30 pulse-ring"></div>
-        <svg class="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
-        </svg>
-      </div>
-      <h1 class="text-lg font-bold text-white tracking-tight">Анализатор оперного вибрато</h1>
-      <p class="mt-2 text-xs sm:text-sm text-slate-400 leading-relaxed">
-        Коснитесь экрана в любом месте, чтобы включить микрофон. Во время пения коснитесь графика для стоп-кадра и детального разбора волны.
-      </p>
-      <div class="mt-4 pt-3 border-t border-slate-800/80 grid grid-cols-3 gap-2 text-[11px] text-slate-400">
-        <div>
-          <span class="block text-emerald-400 font-mono-num font-semibold">5.0–7.0 Гц</span>
-          <span>Периодичность</span>
-        </div>
-        <div>
-          <span class="block text-cyan-400 font-mono-num font-semibold">±35…75 ¢</span>
-          <span>Широта</span>
-        </div>
-        <div>
-          <span class="block text-amber-400 font-mono-num font-semibold">&gt; 80%</span>
-          <span>Стабильность</span>
-        </div>
-      </div>
-      <div id="errorBox" class="hidden mt-4 p-3 rounded-xl bg-rose-950/70 border border-rose-700/60 text-xs text-rose-200 text-left"></div>
+  <!-- Минималистичный стартовый экран с одной кнопкой микрофона -->
+  <div id="startOverlay" class="fixed inset-0 z-20 flex flex-col items-center justify-center bg-[#080b10] cursor-pointer transition-opacity duration-200">
+    <div class="w-20 h-20 rounded-full bg-emerald-500/15 border border-emerald-500/50 flex items-center justify-center text-emerald-400 active:scale-95 transition-transform">
+      <svg class="w-9 h-9" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+      </svg>
     </div>
+    <span class="mt-4 text-sm font-medium text-slate-300">Нажмите для включения микрофона</span>
+    <div id="errorBox" class="hidden mt-4 max-w-xs p-3 rounded-lg bg-rose-950/80 border border-rose-700/60 text-xs text-rose-200 text-center"></div>
   </div>
 
-  <!-- Индикатор стоп-кадра (появляется при касании графика для осмотра спетой фразы) -->
-  <div id="freezeBadge" class="hidden pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 z-10 px-4 py-1.5 rounded-full bg-amber-500/20 border border-amber-400/50 backdrop-blur-md text-amber-200 text-xs font-medium tracking-wide shadow-lg">
-    СТОП-КАДР • Коснитесь экрана для продолжения
+  <!-- Компактный индикатор паузы -->
+  <div id="freezeBadge" class="hidden pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-600 text-slate-200 text-xs font-medium">
+    Пауза
   </div>
 
   <script>
     (() => {
       'use strict';
 
-      // Названия нот в хроматической гамме
       const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
       const A4_FREQ = 440.0;
       const A4_MIDI = 69;
 
-      // Оперные эталонные параметры вибрато
-      const IDEAL_RATE_MIN = 5.0;   // Гц (ниже — тенденция к качке / wobble)
-      const IDEAL_RATE_MAX = 7.0;   // Гц (выше — тенденция к тремоло / bleat)
-      const IDEAL_EXTENT_MIN = 35;  // центов (±0.35 полутона)
-      const IDEAL_EXTENT_MAX = 75;  // центов (±0.75 полутона)
-      const STRAIGHT_TONE_MAX = 18; // центов (прямой тон / senza vibrato)
+      // Оперные ориентиры: 5–7 Гц и ±35..75 центов
+      const IDEAL_RATE_MIN = 5.0;
+      const IDEAL_RATE_MAX = 7.0;
+      const IDEAL_EXTENT_MIN = 35;
+      const IDEAL_EXTENT_MAX = 75;
+      const STRAIGHT_TONE_MAX = 18;
 
-      // Временное окно графика (секунд истории на левой части графика)
-      const HISTORY_SECONDS = 3.6;
+      const HISTORY_SECONDS = 3.2;
 
-      // DOM-элементы
       const canvas = document.getElementById('vibratoCanvas');
       const ctx = canvas.getContext('2d', { alpha: false });
       const startOverlay = document.getElementById('startOverlay');
@@ -180,22 +121,10 @@
       const freezeBadge = document.getElementById('freezeBadge');
 
       const hudNoteName = document.getElementById('hudNoteName');
-      const hudNoteCents = document.getElementById('hudNoteCents');
-      const hudNoteHz = document.getElementById('hudNoteHz');
-      const hudIntonationStatus = document.getElementById('hudIntonationStatus');
-
       const hudRateValue = document.getElementById('hudRateValue');
-      const hudRateStatus = document.getElementById('hudRateStatus');
-
       const hudWidthValue = document.getElementById('hudWidthValue');
-      const hudWidthSemitones = document.getElementById('hudWidthSemitones');
-      const hudWidthStatus = document.getElementById('hudWidthStatus');
-
       const hudStabilityValue = document.getElementById('hudStabilityValue');
-      const hudCyclesCount = document.getElementById('hudCyclesCount');
-      const hudStabilityStatus = document.getElementById('hudStabilityStatus');
 
-      // Состояние аудио и анализатора
       let audioCtx = null;
       let analyser = null;
       let timeBuffer = null;
@@ -203,43 +132,27 @@
       let isFrozen = false;
       let freezeTime = 0;
 
-      // Буфер истории точек тона:
-      // { t, rawMidi, smoothMidi, centerMidi, offsetCents, velocityCentsPerSec, upperEnvCents, lowerEnvCents, clarity, rms, qualityState }
       const pitchHistory = [];
-      // Экстремумы (пики и впадины волны вибрато):
-      // { t, midi, centerMidi, offsetCents, type: 'peak' | 'trough', periodHz, swingCents }
       const extremaHistory = [];
 
-      // Состояние слежения за текущей нотой и фазой вибрато
-      let currentCenterMidi = 69.0; // По умолчанию A4 (440 Гц)
-      let displayCenterMidi = 69.0; // Плавная координата камеры по вертикали
-      let cameraVelocity = 0;
+      let currentCenterMidi = 69.0;
+      let displayCenterMidi = 69.0;
       let lastValidPitchTime = 0;
       let smoothedMidiState = null;
-      let prevSmoothMidi = null;
       let prevFrameTime = performance.now() / 1000;
 
-      // Текущие вычисленные метрики вибрато
       const metrics = {
         active: false,
-        freqHz: 0,
-        centerMidi: 69,
         noteName: '—',
-        centerOffsetCents: 0,
         rateHz: 0,
         extentCents: 0,
         stabilityPct: 0,
         cyclesCount: 0,
-        upperEnvCents: 0,
-        lowerEnvCents: 0,
-        instantOffsetCents: 0,
-        instantVelocity: 0,
-        stateCode: 'idle' // 'idle' | 'straight' | 'optimal' | 'slow' | 'fast' | 'wide' | 'irregular'
+        stateCode: 'idle'
       };
 
-      // Состояние детектора экстремумов с гистерезисом
-      let extremumCandidate = null; // { t, midi, centerMidi, offsetCents, type }
-      let lastExtremumType = null;  // 'peak' | 'trough'
+      let extremumCandidate = null;
+      let lastExtremumType = null;
 
       let viewWidth = window.innerWidth;
       let viewHeight = window.innerHeight;
@@ -429,16 +342,11 @@
         };
       }
 
-      /**
-       * Обработка нового кадра высоты тона, выделение оси центра вибрато,
-       * поиск гребней/впадин и расчет периодичности, широты и стабильности.
-       */
       function processPitchSample(nowSec, detection) {
         const dt = Math.min(0.1, Math.max(0.004, nowSec - prevFrameTime));
         prevFrameTime = nowSec;
 
-        // Удаляем устаревшие точки за пределами окна истории
-        const cutoffTime = nowSec - (HISTORY_SECONDS + 0.8);
+        const cutoffTime = nowSec - (HISTORY_SECONDS + 0.5);
         while (pitchHistory.length > 0 && pitchHistory[0].t < cutoffTime) {
           pitchHistory.shift();
         }
@@ -447,41 +355,35 @@
         }
 
         if (!detection) {
-          // Если пауза длится более 180 мс — сбрасываем непрерывную линию
-          if (nowSec - lastValidPitchTime > 0.18) {
+          if (nowSec - lastValidPitchTime > 0.16) {
             smoothedMidiState = null;
-            prevSmoothMidi = null;
             extremumCandidate = null;
             lastExtremumType = null;
             metrics.active = false;
           }
-          // Плавное движение камеры к текущему центру
-          updateCamera(dt);
+          updateCamera(dt, null);
           return;
         }
 
         const rawMidi = freqToMidi(detection.freq);
 
-        // Проверка на резкий скачок ноты (легато-переход или смена ноты > 1.35 полутона)
-        if (smoothedMidiState === null || Math.abs(rawMidi - smoothedMidiState) > 1.35) {
+        // При смене ноты или после паузы мгновенно захватываем новую высоту
+        if (smoothedMidiState === null || Math.abs(rawMidi - smoothedMidiState) > 1.2) {
           smoothedMidiState = rawMidi;
           currentCenterMidi = rawMidi;
           extremumCandidate = null;
           lastExtremumType = null;
-          // Очищаем экстремумы предыдущей ноты, чтобы статистика мгновенно отражала новую ноту
           extremaHistory.length = 0;
         } else {
-          // Мягкий НЧ-фильтр (срезает микро-джиттер выше ~20 Гц, полностью сохраняя волну 4–9 Гц)
-          const alpha = 1 - Math.exp(-dt * 72);
+          const alpha = 1 - Math.exp(-dt * 75);
           smoothedMidiState += alpha * (rawMidi - smoothedMidiState);
         }
 
         lastValidPitchTime = nowSec;
         const smoothMidi = smoothedMidiState;
 
-        // Вычисляем центр тона (Carrier Pitch) как робастное среднее за окно ~0.34 сек (~2 полных периода вибрато)
-        // Это позволяет оси центра стоять неподвижно ровно посередине размаха вибрато!
-        const windowStart = nowSec - 0.34;
+        // Быстрое вычисление центра ноты за последние 0.30 с
+        const windowStart = nowSec - 0.30;
         let sumMidi = smoothMidi;
         let minWin = smoothMidi;
         let maxWin = smoothMidi;
@@ -490,8 +392,7 @@
         for (let i = pitchHistory.length - 1; i >= 0; i--) {
           const pt = pitchHistory[i];
           if (pt.t < windowStart) break;
-          // Учитываем только точки текущей ноты (в пределах 1.5 полутона)
-          if (Math.abs(pt.smoothMidi - smoothMidi) < 1.5) {
+          if (Math.abs(pt.smoothMidi - smoothMidi) < 1.2) {
             sumMidi += pt.smoothMidi;
             if (pt.smoothMidi < minWin) minWin = pt.smoothMidi;
             if (pt.smoothMidi > maxWin) maxWin = pt.smoothMidi;
@@ -501,88 +402,53 @@
           }
         }
 
-        // Комбинация среднего и середины размаха дает идеальную симметричную ось вибрато
-        const meanWindowMidi = sumMidi / countWin;
-        const midRangeMidi = 0.5 * (minWin + maxWin);
-        const targetCenterMidi = countWin > 6 ? (0.55 * midRangeMidi + 0.45 * meanWindowMidi) : meanWindowMidi;
+        const targetCenterMidi = countWin > 4
+          ? 0.5 * (minWin + maxWin) * 0.6 + (sumMidi / countWin) * 0.4
+          : sumMidi / countWin;
 
-        // Плавно обновляем текущую ось центра тона
-        const centerAlpha = 1 - Math.exp(-dt * 14);
+        // Быстрая подстройка центра (чтобы ось не отставала от голоса)
+        const centerAlpha = 1 - Math.exp(-dt * 22);
         currentCenterMidi += centerAlpha * (targetCenterMidi - currentCenterMidi);
 
-        // Отклонение от центра тона в центах (1 полутон = 100 центов)
         const offsetCents = (smoothMidi - currentCenterMidi) * 100;
 
-        // Производная (скорость изменения высоты тона в центах/сек) для фазового портрета
-        let velocityCentsPerSec = 0;
-        if (prevSmoothMidi !== null) {
-          const rawVel = ((smoothMidi - prevSmoothMidi) * 100) / dt;
-          velocityCentsPerSec = metrics.instantVelocity * 0.6 + rawVel * 0.4;
-        }
-        prevSmoothMidi = smoothMidi;
-
-        // Детектор пиков (гребней) и впадин волны с гистерезисом
         detectVibratoExtrema(nowSec, smoothMidi, currentCenterMidi, offsetCents);
+        computeVibratoStatistics(nowSec, currentCenterMidi, offsetCents);
 
-        // Пересчет живой статистики по последним циклам вибрато
-        computeVibratoStatistics(nowSec, smoothMidi, currentCenterMidi, offsetCents, velocityCentsPerSec);
-
-        // Сохраняем точку в историю
         pitchHistory.push({
           t: nowSec,
-          rawMidi,
           smoothMidi,
           centerMidi: currentCenterMidi,
           offsetCents,
-          velocityCentsPerSec,
-          upperEnvCents: metrics.upperEnvCents,
-          lowerEnvCents: metrics.lowerEnvCents,
-          clarity: detection.clarity,
-          rms: detection.rms,
           stateCode: metrics.stateCode
         });
 
-        updateCamera(dt);
+        updateCamera(dt, smoothMidi);
       }
 
-      /**
-       * Поиск истинных верхних и нижних пиков волны вибрато с гистерезисом
-       */
       function detectVibratoExtrema(t, midi, centerMidi, offsetCents) {
-        const HYSTERESIS_CENTS = 14; // Минимальный обратный ход волны для фиксации пика
-        const MIN_EXCURSION = 10;    // Минимальное отклонение от оси для учета вибрато
+        const HYSTERESIS_CENTS = 13;
+        const MIN_EXCURSION = 10;
 
         if (!extremumCandidate) {
           extremumCandidate = {
-            t,
-            midi,
-            centerMidi,
-            offsetCents,
-            maxOffset: offsetCents,
-            maxT: t,
-            maxMidi: midi,
-            minOffset: offsetCents,
-            minT: t,
-            minMidi: midi
+            maxOffset: offsetCents, maxT: t, maxMidi: midi,
+            minOffset: offsetCents, minT: t, minMidi: midi
           };
           return;
         }
 
-        // Обновляем локальный максимум и минимум
         if (offsetCents > extremumCandidate.maxOffset) {
           extremumCandidate.maxOffset = offsetCents;
           extremumCandidate.maxT = t;
           extremumCandidate.maxMidi = midi;
-          extremumCandidate.maxCenter = centerMidi;
         }
         if (offsetCents < extremumCandidate.minOffset) {
           extremumCandidate.minOffset = offsetCents;
           extremumCandidate.minT = t;
           extremumCandidate.minMidi = midi;
-          extremumCandidate.minCenter = centerMidi;
         }
 
-        // Проверяем разворот вниз после верхнего пика (гребня)
         if (
           lastExtremumType !== 'peak' &&
           extremumCandidate.maxOffset >= MIN_EXCURSION &&
@@ -591,18 +457,13 @@
           registerExtremum({
             t: extremumCandidate.maxT,
             midi: extremumCandidate.maxMidi,
-            centerMidi: extremumCandidate.maxCenter || centerMidi,
-            offsetCents: extremumCandidate.maxOffset,
             type: 'peak'
           });
           lastExtremumType = 'peak';
           extremumCandidate.minOffset = offsetCents;
           extremumCandidate.minT = t;
           extremumCandidate.minMidi = midi;
-          extremumCandidate.minCenter = centerMidi;
-        }
-        // Проверяем разворот вверх после нижней впадины
-        else if (
+        } else if (
           lastExtremumType !== 'trough' &&
           extremumCandidate.minOffset <= -MIN_EXCURSION &&
           offsetCents - extremumCandidate.minOffset >= HYSTERESIS_CENTS
@@ -610,20 +471,16 @@
           registerExtremum({
             t: extremumCandidate.minT,
             midi: extremumCandidate.minMidi,
-            centerMidi: extremumCandidate.minCenter || centerMidi,
-            offsetCents: extremumCandidate.minOffset,
             type: 'trough'
           });
           lastExtremumType = 'trough';
           extremumCandidate.maxOffset = offsetCents;
           extremumCandidate.maxT = t;
           extremumCandidate.maxMidi = midi;
-          extremumCandidate.maxCenter = centerMidi;
         }
       }
 
       function registerExtremum(ext) {
-        // Вычисляем мгновенную частоту (Гц) от предыдущего одноименного экстремума
         let periodHz = 0;
         let swingCents = 0;
 
@@ -631,7 +488,6 @@
           const prev = extremaHistory[i];
           if (prev.type === ext.type) {
             const dtPeriod = ext.t - prev.t;
-            // Диапазон физиологического вокального вибрато/тремоло: 2.8 Гц ... 10.5 Гц
             if (dtPeriod >= 0.095 && dtPeriod <= 0.36) {
               periodHz = 1.0 / dtPeriod;
             }
@@ -642,7 +498,6 @@
         if (extremaHistory.length > 0) {
           const prevOpp = extremaHistory[extremaHistory.length - 1];
           if (prevOpp.type !== ext.type && (ext.t - prevOpp.t) <= 0.25) {
-            // Полуразмах (амплитуда ± в центах) между соседними пиком и впадиной
             swingCents = Math.abs(ext.midi - prevOpp.midi) * 50;
           }
         }
@@ -652,101 +507,57 @@
         extremaHistory.push(ext);
       }
 
-      function computeVibratoStatistics(nowSec, smoothMidi, centerMidi, offsetCents, velocityCentsPerSec) {
+      function computeVibratoStatistics(nowSec, centerMidi, offsetCents) {
         metrics.active = true;
-        metrics.centerMidi = centerMidi;
-        metrics.freqHz = midiToFreq(centerMidi);
-        const noteInfo = formatNoteInfo(centerMidi);
-        metrics.noteName = noteInfo.name;
-        metrics.centerOffsetCents = noteInfo.cents;
-        metrics.instantOffsetCents = offsetCents;
-        metrics.instantVelocity = velocityCentsPerSec;
+        metrics.noteName = formatNoteInfo(centerMidi).name;
 
-        // Берем экстремумы за последние 1.6 секунды
-        const recentWindow = nowSec - 1.6;
-        const recentExtrema = extremaHistory.filter(e => e.t >= recentWindow);
-
+        const recentExtrema = extremaHistory.filter(e => e.t >= nowSec - 1.5);
         const validPeriods = [];
         const validSwings = [];
-        let recentPeakSum = 0, recentPeakCount = 0;
-        let recentTroughSum = 0, recentTroughCount = 0;
 
         for (let i = 0; i < recentExtrema.length; i++) {
           const e = recentExtrema[i];
-          if (e.periodHz >= 2.8 && e.periodHz <= 10.5) {
-            validPeriods.push(e.periodHz);
-          }
-          if (e.swingCents >= 10 && e.swingCents <= 180) {
-            validSwings.push(e.swingCents);
-          }
-          if (e.type === 'peak') {
-            recentPeakSum += Math.max(10, e.offsetCents);
-            recentPeakCount++;
-          } else {
-            recentTroughSum += Math.min(-10, e.offsetCents);
-            recentTroughCount++;
-          }
+          if (e.periodHz >= 2.8 && e.periodHz <= 10.5) validPeriods.push(e.periodHz);
+          if (e.swingCents >= 10 && e.swingCents <= 180) validSwings.push(e.swingCents);
         }
 
-        // Проверяем, не поет ли певец прямой тон (senza vibrato) в последние 0.45 сек
         const lastExtTime = recentExtrema.length > 0 ? recentExtrema[recentExtrema.length - 1].t : 0;
         const timeSinceLastExtremum = nowSec - lastExtTime;
 
         if (validPeriods.length >= 2 && timeSinceLastExtremum < 0.45) {
-          // 1. Средняя частота вибрато (Периодичность, Гц)
           const meanRate = validPeriods.reduce((a, b) => a + b, 0) / validPeriods.length;
-          metrics.rateHz = metrics.rateHz > 0 ? metrics.rateHz * 0.35 + meanRate * 0.65 : meanRate;
+          metrics.rateHz = metrics.rateHz > 0 ? metrics.rateHz * 0.3 + meanRate * 0.7 : meanRate;
 
-          // 2. Средняя широта (Размах ± центы)
           const meanSwing = validSwings.length > 0
             ? validSwings.reduce((a, b) => a + b, 0) / validSwings.length
             : Math.abs(offsetCents);
-          metrics.extentCents = metrics.extentCents > 0 ? metrics.extentCents * 0.35 + meanSwing * 0.65 : meanSwing;
+          metrics.extentCents = metrics.extentCents > 0 ? metrics.extentCents * 0.3 + meanSwing * 0.7 : meanSwing;
 
-          // Огибающая верхних и нижних пиков
-          const targetUpper = recentPeakCount > 0 ? (recentPeakSum / recentPeakCount) : metrics.extentCents;
-          const targetLower = recentTroughCount > 0 ? (recentTroughSum / recentTroughCount) : -metrics.extentCents;
-          metrics.upperEnvCents = metrics.upperEnvCents * 0.7 + targetUpper * 0.3;
-          metrics.lowerEnvCents = metrics.lowerEnvCents * 0.7 + targetLower * 0.3;
-
-          // 3. Индекс стабильности (0–100%) на основе коэффициента вариации периода и амплитуды
           const rateCV = computeCoefficientOfVariation(validPeriods);
           const swingCV = validSwings.length >= 2 ? computeCoefficientOfVariation(validSwings) : 0.08;
-
-          // Идеальная стабильность: CV периода < 0.04, CV амплитуды < 0.08
           const rateStability = Math.max(0, Math.min(100, 100 * (1 - rateCV * 3.2)));
           const ampStability = Math.max(0, Math.min(100, 100 * (1 - swingCV * 2.1)));
           const rawStability = 0.6 * rateStability + 0.4 * ampStability;
 
           metrics.stabilityPct = Math.round(
-            metrics.stabilityPct > 0 ? metrics.stabilityPct * 0.4 + rawStability * 0.6 : rawStability
+            metrics.stabilityPct > 0 ? metrics.stabilityPct * 0.35 + rawStability * 0.65 : rawStability
           );
           metrics.cyclesCount = Math.floor(recentExtrema.length / 2);
 
-          // Классификация характера вибрато для цветовой индикации волны
           if (metrics.extentCents < STRAIGHT_TONE_MAX) {
             metrics.stateCode = 'straight';
-          } else if (metrics.rateHz < IDEAL_RATE_MIN) {
-            metrics.stateCode = 'slow'; // Качка (Wobble)
-          } else if (metrics.rateHz > IDEAL_RATE_MAX) {
-            metrics.stateCode = 'fast'; // Тремоляция (Tremolo)
-          } else if (metrics.extentCents > IDEAL_EXTENT_MAX + 15) {
-            metrics.stateCode = 'wide'; // Слишком широкое
-          } else if (metrics.stabilityPct < 68) {
-            metrics.stateCode = 'irregular'; // Неровное
+          } else if (metrics.rateHz < IDEAL_RATE_MIN || metrics.rateHz > IDEAL_RATE_MAX || metrics.extentCents > IDEAL_EXTENT_MAX + 15) {
+            metrics.stateCode = 'warn';
           } else {
-            metrics.stateCode = 'optimal'; // Оперный эталон
+            metrics.stateCode = 'optimal';
           }
         } else {
-          // Прямой тон или начало взятия ноты
           let recentMaxDev = 0;
           for (let i = pitchHistory.length - 1; i >= 0; i--) {
-            if (nowSec - pitchHistory[i].t > 0.35) break;
+            if (nowSec - pitchHistory[i].t > 0.3) break;
             recentMaxDev = Math.max(recentMaxDev, Math.abs(pitchHistory[i].offsetCents));
           }
-          metrics.extentCents = metrics.extentCents * 0.8 + recentMaxDev * 0.2;
-          metrics.upperEnvCents = metrics.extentCents;
-          metrics.lowerEnvCents = -metrics.extentCents;
+          metrics.extentCents = metrics.extentCents * 0.75 + recentMaxDev * 0.25;
           if (timeSinceLastExtremum >= 0.45) {
             metrics.rateHz = 0;
             metrics.stabilityPct = 0;
@@ -765,183 +576,84 @@
           const d = arr[i] - mean;
           sqDiff += d * d;
         }
-        const stdDev = Math.sqrt(sqDiff / arr.length);
-        return stdDev / mean;
+        return Math.sqrt(sqDiff / arr.length) / mean;
       }
 
       /**
-       * Плавное ведение вертикальной камеры графика за центром поемой ноты
+       * Мгновенное удержание голоса в видимой области экрана:
+       * при больших скачках камера сразу переходит за голосом, не давая линии уйти за край.
        */
-      function updateCamera(dt) {
-        const diff = currentCenterMidi - displayCenterMidi;
-        // Пружинный фильтр без переколебаний
-        const stiffness = 12.0;
-        const damping = 6.5;
-        const accel = stiffness * diff - damping * cameraVelocity;
-        cameraVelocity += accel * dt;
-        displayCenterMidi += cameraVelocity * dt;
+      function updateCamera(dt, liveMidi) {
+        const fastAlpha = 1 - Math.exp(-dt * 26);
+        displayCenterMidi += fastAlpha * (currentCenterMidi - displayCenterMidi);
+
+        // Жесткое ограничение: голос никогда не может отклониться от центра экрана больше чем на 1.2 полутона
+        if (liveMidi !== null) {
+          const maxOffsetSemitones = 1.2;
+          if (liveMidi - displayCenterMidi > maxOffsetSemitones) {
+            displayCenterMidi = liveMidi - maxOffsetSemitones;
+          } else if (displayCenterMidi - liveMidi > maxOffsetSemitones) {
+            displayCenterMidi = liveMidi + maxOffsetSemitones;
+          }
+        }
       }
 
       let lastHudUpdate = 0;
       function updateHudDOM(nowMs) {
-        if (nowMs - lastHudUpdate < 50) return; // 20 Гц обновление текста для четкой читаемости
+        if (nowMs - lastHudUpdate < 50) return;
         lastHudUpdate = nowMs;
 
-        if (!metrics.active && !isFrozen) {
-          hudIntonationStatus.textContent = 'Спойте гласную ноту';
-          hudIntonationStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-slate-500 truncate';
-          return;
-        }
+        if (!metrics.active && !isFrozen) return;
 
-        // 1. Нота и интонация центра
         hudNoteName.textContent = metrics.noteName;
-        const c = metrics.centerOffsetCents;
-        hudNoteCents.textContent = `${c >= 0 ? '+' : ''}${c}¢`;
-        hudNoteHz.textContent = `${metrics.freqHz.toFixed(1)} Гц`;
 
-        if (Math.abs(c) <= 10) {
-          hudNoteCents.className = 'text-xs sm:text-sm font-mono-num font-semibold text-emerald-400';
-          hudIntonationStatus.textContent = 'Точный центр ноты';
-          hudIntonationStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-emerald-400/90 truncate';
-        } else if (c > 10) {
-          hudNoteCents.className = 'text-xs sm:text-sm font-mono-num font-semibold text-amber-400';
-          hudIntonationStatus.textContent = `Высоковато (+${c}¢)`;
-          hudIntonationStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-amber-400/90 truncate';
-        } else {
-          hudNoteCents.className = 'text-xs sm:text-sm font-mono-num font-semibold text-sky-400';
-          hudIntonationStatus.textContent = `Низковато (${c}¢)`;
-          hudIntonationStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-sky-400/90 truncate';
-        }
-
-        // 2. Периодичность (Частота вибрато)
         if (metrics.rateHz > 0) {
           hudRateValue.textContent = metrics.rateHz.toFixed(1);
-          if (metrics.rateHz >= IDEAL_RATE_MIN && metrics.rateHz <= IDEAL_RATE_MAX) {
-            hudRateValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-emerald-400';
-            hudRateStatus.textContent = 'Оперный баланс (5–7 Гц)';
-            hudRateStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-emerald-400/90 truncate';
-          } else if (metrics.rateHz < IDEAL_RATE_MIN) {
-            hudRateValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-amber-400';
-            hudRateStatus.textContent = 'Медленно (качка < 5 Гц)';
-            hudRateStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-amber-400/90 truncate';
-          } else {
-            hudRateValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-rose-400';
-            hudRateStatus.textContent = 'Быстро (тремоло > 7 Гц)';
-            hudRateStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-rose-400/90 truncate';
-          }
+          const rateOk = metrics.rateHz >= IDEAL_RATE_MIN && metrics.rateHz <= IDEAL_RATE_MAX;
+          hudRateValue.className = `text-2xl sm:text-3xl font-bold font-mono-num ${rateOk ? 'text-emerald-400' : 'text-amber-400'}`;
         } else {
           hudRateValue.textContent = '—';
-          hudRateValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-slate-300';
-          hudRateStatus.textContent = 'Прямой тон (без вибрато)';
-          hudRateStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-sky-400/80 truncate';
+          hudRateValue.className = 'text-2xl sm:text-3xl font-bold font-mono-num text-slate-400';
         }
 
-        // 3. Широта (Размах в центах и полутонах)
         const ext = Math.round(metrics.extentCents);
         hudWidthValue.textContent = `±${ext}`;
-        hudWidthSemitones.textContent = `±${(ext / 100).toFixed(2)} пт`;
+        const widthOk = ext >= IDEAL_EXTENT_MIN && ext <= IDEAL_EXTENT_MAX;
+        hudWidthValue.className = `text-2xl sm:text-3xl font-bold font-mono-num ${widthOk ? 'text-emerald-400' : 'text-sky-300'}`;
 
-        if (ext >= IDEAL_EXTENT_MIN && ext <= IDEAL_EXTENT_MAX) {
-          hudWidthValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-cyan-400';
-          hudWidthStatus.textContent = 'Эталон (±35…75¢)';
-          hudWidthStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-cyan-400/90 truncate';
-        } else if (ext < STRAIGHT_TONE_MAX) {
-          hudWidthValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-sky-300';
-          hudWidthStatus.textContent = 'Прямой тон (< ±18¢)';
-          hudWidthStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-sky-300/80 truncate';
-        } else if (ext < IDEAL_EXTENT_MIN) {
-          hudWidthValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-teal-300';
-          hudWidthStatus.textContent = 'Узкое вибрато';
-          hudWidthStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-teal-300/90 truncate';
-        } else {
-          hudWidthValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-amber-400';
-          hudWidthStatus.textContent = 'Широкий размах (> ±75¢)';
-          hudWidthStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-amber-400/90 truncate';
-        }
-
-        // 4. Стабильность
-        hudCyclesCount.textContent = `${metrics.cyclesCount} цикл.`;
         if (metrics.rateHz > 0 && metrics.cyclesCount >= 1) {
           hudStabilityValue.textContent = `${metrics.stabilityPct}`;
-          if (metrics.stabilityPct >= 82) {
-            hudStabilityValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-emerald-400';
-            hudStabilityStatus.textContent = 'Ровное, свободное вибрато';
-            hudStabilityStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-emerald-400/90 truncate';
-          } else if (metrics.stabilityPct >= 65) {
-            hudStabilityValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-amber-400';
-            hudStabilityStatus.textContent = 'Умеренная ровность';
-            hudStabilityStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-amber-400/90 truncate';
-          } else {
-            hudStabilityValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-rose-400';
-            hudStabilityStatus.textContent = 'Нестабильный период/размах';
-            hudStabilityStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-rose-400/90 truncate';
-          }
+          const stabOk = metrics.stabilityPct >= 80;
+          hudStabilityValue.className = `text-2xl sm:text-3xl font-bold font-mono-num ${stabOk ? 'text-emerald-400' : 'text-amber-400'}`;
         } else {
           hudStabilityValue.textContent = '—';
-          hudStabilityValue.className = 'text-xl sm:text-3xl font-bold font-mono-num tracking-tight text-slate-400';
-          hudStabilityStatus.textContent = 'Ожидание фазы вибрато';
-          hudStabilityStatus.className = 'mt-0.5 text-[10px] sm:text-xs text-slate-500 truncate';
+          hudStabilityValue.className = 'text-2xl sm:text-3xl font-bold font-mono-num text-slate-400';
         }
       }
 
-      /**
-       * Цвет волны в зависимости от состояния вибрато
-       */
-      function getStateColor(stateCode, alpha = 1) {
-        switch (stateCode) {
-          case 'optimal':
-            return `rgba(16, 185, 129, ${alpha})`; // Изумрудный (Эталон)
-          case 'straight':
-            return `rgba(56, 189, 248, ${alpha})`; // Небесно-голубой (Прямой тон)
-          case 'slow':
-          case 'wide':
-            return `rgba(245, 158, 11, ${alpha})`; // Янтарный (Качка / Широкое)
-          case 'fast':
-          case 'irregular':
-            return `rgba(244, 63, 94, ${alpha})`;  // Кораллово-розовый (Тремоло / Неровное)
-          default:
-            return `rgba(148, 163, 184, ${alpha})`;
-        }
+      function getStateColor(stateCode) {
+        if (stateCode === 'optimal') return '#10b981'; // Зеленый (норма)
+        if (stateCode === 'warn') return '#f59e0b';    // Желтый (отклонение)
+        return '#38bdf8';                              // Голубой (прямой тон)
       }
 
-      /**
-       * Главная функция отрисовки ЕДИНСТВЕННОГО ГРАФИКА.
-       * Объединяет:
-       *  1. Музыкальную сетку полутонов и центов (±50¢ эталонный коридор).
-       *  2. Несущую ось центра тона (Center Pitch Spine) — показывает чистоту интонации.
-       *  3. Живую ленту огибающей широты (Vibrato Width Envelope Ribbon).
-       *  4. Высокоточную кривую голоса с узлами пиков/впадин и размерными мостиками периода (Гц) и широты (¢).
-       *  5. Справа от линии «СЕЙЧАС» на той же шкале нот — живой кронштейн широты и фазовый эллипс стабильности.
-       */
       function renderUnifiedGraph(renderTimeSec) {
         const w = viewWidth;
         const h = viewHeight;
 
-        // Очистка фона глубоким темным градиентом
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-        bgGrad.addColorStop(0, '#07090e');
-        bgGrad.addColorStop(0.5, '#0a0f18');
-        bgGrad.addColorStop(1, '#07090e');
-        ctx.fillStyle = bgGrad;
+        ctx.fillStyle = '#080b10';
         ctx.fillRect(0, 0, w, h);
 
-        // Геометрия рабочей области графика
-        const isCompact = w < 640;
-        const topReserved = isCompact ? 94 : 108;
-        const bottomReserved = 28;
-        const plotTop = topReserved;
-        const plotBottom = h - bottomReserved;
+        const plotTop = 68;
+        const plotBottom = h - 16;
         const plotHeight = Math.max(120, plotBottom - plotTop);
 
-        // Линия «СЕЙЧАС» (Playhead) делит единый график на историю волны (слева, 76% ширины)
-        // и проекцию текущего цикла/широты/фазы (справа, 24% ширины на той же оси полутонов)
-        const leftMargin = isCompact ? 46 : 62;
-        const nowX = Math.floor(w * (isCompact ? 0.74 : 0.77));
+        const leftMargin = 48;
+        const nowX = w - 24;
         const traceWidth = Math.max(100, nowX - leftMargin);
 
-        // Вертикальный масштаб: показываем ±1.8 полутона (всего 3.6 полутона = 360 центов)
-        // При таком масштабе эталонное вибрато ±50¢ занимает крупную, наглядную центральную зону
-        const visibleSemitones = isCompact ? 3.4 : 3.6;
+        // Отображаем 4.6 полутона по вертикали — голос всегда свободно помещается на экране
+        const visibleSemitones = 4.6;
         const pxPerSemitone = plotHeight / visibleSemitones;
         const pxPerCent = pxPerSemitone / 100;
         const plotCenterY = plotTop + plotHeight * 0.5;
@@ -949,99 +661,73 @@
         const midiToY = (midi) => plotCenterY - (midi - displayCenterMidi) * pxPerSemitone;
         const timeToX = (t) => nowX - ((renderTimeSec - t) / HISTORY_SECONDS) * traceWidth;
 
-        // =========================================================================
-        // СЛОЙ 1: СЕТКА ВРЕМЕНИ И МУЗЫКАЛЬНЫХ ПОЛУТОНОВ + ЗОЛОТОЙ КОРИДОР ±50¢
-        // =========================================================================
-
-        // 1A. Вертикальные линии секундной сетки
-        ctx.lineWidth = 1;
-        ctx.font = '500 10px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        for (let sec = 0; sec <= Math.ceil(HISTORY_SECONDS); sec++) {
-          const x = nowX - (sec / HISTORY_SECONDS) * traceWidth;
-          if (x < leftMargin) continue;
-          ctx.strokeStyle = sec === 0 ? 'rgba(148, 163, 184, 0.35)' : 'rgba(30, 41, 59, 0.55)';
-          ctx.beginPath();
-          ctx.moveTo(x, plotTop);
-          ctx.lineTo(x, plotBottom);
-          ctx.stroke();
-
-          ctx.fillStyle = sec === 0 ? '#94a3b8' : '#475569';
-          ctx.fillText(sec === 0 ? '0.0с' : `-${sec}.0с`, x, h - 9);
-        }
-
-        // 1B. Эталонный оперный коридор широты (±50 центов вокруг текущего центра ноты)
+        // 1. Зеленый коридор эталонной широты вибрато (±50 центов вокруг текущей ноты)
         const activeCenterMidi = metrics.active || isFrozen ? currentCenterMidi : Math.round(displayCenterMidi);
         const centerLineY = midiToY(activeCenterMidi);
         const corridorHalfPx = 50 * pxPerCent;
 
-        const corridorGrad = ctx.createLinearGradient(0, centerLineY - corridorHalfPx, 0, centerLineY + corridorHalfPx);
-        corridorGrad.addColorStop(0, 'rgba(16, 185, 129, 0.02)');
-        corridorGrad.addColorStop(0.5, 'rgba(16, 185, 129, 0.08)');
-        corridorGrad.addColorStop(1, 'rgba(16, 185, 129, 0.02)');
-        ctx.fillStyle = corridorGrad;
-        ctx.fillRect(leftMargin, centerLineY - corridorHalfPx, w - leftMargin - 8, corridorHalfPx * 2);
+        ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
+        ctx.fillRect(leftMargin, centerLineY - corridorHalfPx, traceWidth, corridorHalfPx * 2);
 
-        // Пунктирные границы эталонного коридора +50¢ и -50¢
+        // Пунктирные границы ±50 центов
         ctx.save();
         ctx.setLineDash([4, 6]);
-        ctx.strokeStyle = 'rgba(16, 185, 129, 0.32)';
+        ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
         ctx.lineWidth = 1;
         [-50, 50].forEach(c => {
           const y = centerLineY - c * pxPerCent;
-          if (y > plotTop && y < plotBottom) {
-            ctx.beginPath();
-            ctx.moveTo(leftMargin, y);
-            ctx.lineTo(w - 10, y);
-            ctx.stroke();
-          }
+          ctx.beginPath();
+          ctx.moveTo(leftMargin, y);
+          ctx.lineTo(nowX, y);
+          ctx.stroke();
         });
         ctx.restore();
 
-        // 1C. Горизонтальные линии полутонов (нот)
+        // Ось центра тона
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(leftMargin, centerLineY);
+        ctx.lineTo(nowX, centerLineY);
+        ctx.stroke();
+
+        // 2. Горизонтальная сетка нот (полутонов)
         const minVisibleMidi = Math.floor(displayCenterMidi - visibleSemitones * 0.55);
         const maxVisibleMidi = Math.ceil(displayCenterMidi + visibleSemitones * 0.55);
         const nearestActiveMidi = Math.round(activeCenterMidi);
 
         for (let m = minVisibleMidi; m <= maxVisibleMidi; m++) {
           const y = midiToY(m);
-          if (y < plotTop - 10 || y > plotBottom + 10) continue;
+          if (y < plotTop || y > plotBottom) continue;
 
-          const isTargetNote = m === nearestActiveMidi;
+          const isTarget = m === nearestActiveMidi;
           const noteInfo = formatNoteInfo(m);
 
-          ctx.strokeStyle = isTargetNote ? 'rgba(226, 232, 240, 0.35)' : 'rgba(51, 65, 85, 0.55)';
-          ctx.lineWidth = isTargetNote ? 1.5 : 1;
+          ctx.strokeStyle = isTarget ? 'rgba(148, 163, 184, 0.28)' : 'rgba(30, 41, 59, 0.7)';
+          ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(leftMargin, y);
-          ctx.lineTo(w - 10, y);
+          ctx.lineTo(nowX, y);
           ctx.stroke();
 
-          // Подпись ноты слева
-          ctx.fillStyle = isTargetNote ? '#f8fafc' : '#64748b';
-          ctx.font = isTargetNote
-            ? '700 12px "JetBrains Mono", monospace'
-            : '500 11px "JetBrains Mono", monospace';
+          ctx.fillStyle = isTarget ? '#f8fafc' : '#64748b';
+          ctx.font = isTarget ? '700 12px "JetBrains Mono", monospace' : '500 11px "JetBrains Mono", monospace';
           ctx.textAlign = 'right';
           ctx.textBaseline = 'middle';
           ctx.fillText(noteInfo.name, leftMargin - 8, y);
         }
 
-        // =========================================================================
-        // СЛОЙ 2: ОГИБАЮЩАЯ ШИРОТЫ ВИБРАТО И НЕСУЩАЯ ОСЬ ЦЕНТРА ТОНА
-        // =========================================================================
-
-        // Разбиваем точки истории на непрерывные вокальные сегменты (разрыв > 160 мс или скачок > 1.4 пт)
+        // 3. Кривая голоса
         const segments = [];
         let currentSeg = [];
         for (let i = 0; i < pitchHistory.length; i++) {
           const pt = pitchHistory[i];
-          if (pt.t < renderTimeSec - HISTORY_SECONDS - 0.1) continue;
+          if (pt.t < renderTimeSec - HISTORY_SECONDS) continue;
           if (pt.t > renderTimeSec) break;
 
           if (currentSeg.length > 0) {
             const prev = currentSeg[currentSeg.length - 1];
-            if (pt.t - prev.t > 0.16 || Math.abs(pt.smoothMidi - prev.smoothMidi) > 1.4) {
+            if (pt.t - prev.t > 0.16 || Math.abs(pt.smoothMidi - prev.smoothMidi) > 1.5) {
               segments.push(currentSeg);
               currentSeg = [];
             }
@@ -1055,290 +741,42 @@
         ctx.rect(leftMargin, plotTop, traceWidth, plotHeight);
         ctx.clip();
 
-        // 2A. Отрисовка полупрозрачной ленты огибающей широты (Upper & Lower Envelope Ribbon)
-        segments.forEach(seg => {
-          if (seg.length < 3) return;
-
-          ctx.beginPath();
-          for (let i = 0; i < seg.length; i++) {
-            const pt = seg[i];
-            const x = timeToX(pt.t);
-            const yUp = midiToY(pt.centerMidi + pt.upperEnvCents / 100);
-            if (i === 0) ctx.moveTo(x, yUp);
-            else ctx.lineTo(x, yUp);
-          }
-          for (let i = seg.length - 1; i >= 0; i--) {
-            const pt = seg[i];
-            const x = timeToX(pt.t);
-            const yLow = midiToY(pt.centerMidi + pt.lowerEnvCents / 100);
-            ctx.lineTo(x, yLow);
-          }
-          ctx.closePath();
-
-          ctx.fillStyle = 'rgba(6, 182, 212, 0.11)';
-          ctx.fill();
-
-          // Верхняя и нижняя границы огибающей широты
-          ctx.strokeStyle = 'rgba(34, 211, 238, 0.28)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          for (let i = 0; i < seg.length; i++) {
-            const x = timeToX(seg[i].t);
-            const yUp = midiToY(seg[i].centerMidi + seg[i].upperEnvCents / 100);
-            if (i === 0) ctx.moveTo(x, yUp);
-            else ctx.lineTo(x, yUp);
-          }
-          for (let i = 0; i < seg.length; i++) {
-            const x = timeToX(seg[i].t);
-            const yLow = midiToY(seg[i].centerMidi + seg[i].lowerEnvCents / 100);
-            if (i === 0) ctx.moveTo(x, yLow);
-            else ctx.lineTo(x, yLow);
-          }
-          ctx.stroke();
-        });
-
-        // 2B. Отрисовка Несущей Оси Центра Тона (Center Pitch Spine)
         segments.forEach(seg => {
           if (seg.length < 2) return;
-          ctx.strokeStyle = 'rgba(248, 250, 252, 0.65)';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          for (let i = 0; i < seg.length; i++) {
-            const x = timeToX(seg[i].t);
-            const y = midiToY(seg[i].centerMidi);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          }
-          ctx.stroke();
-        });
-
-        // =========================================================================
-        // СЛОЙ 3: ОСНОВНАЯ ВОЛНА ГОЛОСА И РАЗМЕРНЫЕ МОСТИКИ ПЕРИОДА И ШИРОТЫ
-        // =========================================================================
-
-        segments.forEach(seg => {
-          if (seg.length < 2) return;
-
-          // Мягкое свечение основной волны
           const lastState = seg[seg.length - 1].stateCode;
-          ctx.strokeStyle = getStateColor(lastState, 0.28);
-          ctx.lineWidth = 7;
+          ctx.strokeStyle = getStateColor(lastState);
+          ctx.lineWidth = 3;
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
           drawSmoothCurve(ctx, seg, timeToX, midiToY);
           ctx.stroke();
-
-          // Четкое ядро волны с гладкой сплайн-интерполяцией
-          ctx.strokeStyle = getStateColor(lastState, 0.96);
-          ctx.lineWidth = 2.8;
-          drawSmoothCurve(ctx, seg, timeToX, midiToY);
-          ctx.stroke();
         });
 
-        // 3B. Отрисовка узлов экстремумов (пиков и впадин) + наглядных мостиков Периодичности (Гц) и Широты (¢)
-        const visibleExtrema = extremaHistory.filter(
-          e => e.t >= renderTimeSec - HISTORY_SECONDS && e.t <= renderTimeSec
-        );
-
-        const peaksOnly = [];
-        for (let i = 0; i < visibleExtrema.length; i++) {
-          const ext = visibleExtrema[i];
+        // Точки на пиках и впадинах для наглядного контроля ровности волны
+        for (let i = 0; i < extremaHistory.length; i++) {
+          const ext = extremaHistory[i];
+          if (ext.t < renderTimeSec - HISTORY_SECONDS || ext.t > renderTimeSec) continue;
           const x = timeToX(ext.t);
           const y = midiToY(ext.midi);
-          const yCenter = midiToY(ext.centerMidi);
-
-          // Вертикальный перпендикуляр от пика/впадины к оси центра ноты (показывает полуразмах каждого колебания)
-          ctx.strokeStyle = ext.type === 'peak' ? 'rgba(52, 211, 153, 0.35)' : 'rgba(56, 189, 248, 0.35)';
-          ctx.lineWidth = 1;
+          ctx.fillStyle = '#f8fafc';
           ctx.beginPath();
-          ctx.moveTo(x, y);
-          ctx.lineTo(x, yCenter);
-          ctx.stroke();
-
-          // Светящийся узел на вершине гребня или впадины
-          ctx.fillStyle = ext.type === 'peak' ? '#34d399' : '#38bdf8';
-          ctx.beginPath();
-          ctx.arc(x, y, 3.6, 0, Math.PI * 2);
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
           ctx.fill();
-
-          ctx.strokeStyle = '#07090e';
-          ctx.lineWidth = 1.2;
-          ctx.stroke();
-
-          if (ext.type === 'peak') {
-            peaksOnly.push({ ext, x, y });
-          }
         }
 
-        // Размерные мостики периода (Гц) между соседними верхними гребнями волны
-        ctx.font = '600 10px "JetBrains Mono", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
+        ctx.restore();
 
-        for (let i = 1; i < peaksOnly.length; i++) {
-          const p1 = peaksOnly[i - 1];
-          const p2 = peaksOnly[i];
-          const hz = p2.ext.periodHz;
-          if (hz >= 3.0 && hz <= 10.0 && (p2.x - p1.x) > 26 && (p2.x - p1.x) < traceWidth * 0.45) {
-            const bridgeY = Math.min(p1.y, p2.y) - 12;
-            if (bridgeY > plotTop + 14) {
-              const isGoodRate = hz >= IDEAL_RATE_MIN && hz <= IDEAL_RATE_MAX;
-              ctx.strokeStyle = isGoodRate ? 'rgba(52, 211, 153, 0.55)' : 'rgba(251, 191, 36, 0.55)';
-              ctx.lineWidth = 1.2;
-
-              // Горизонтальная скобка периода λ
-              ctx.beginPath();
-              ctx.moveTo(p1.x, bridgeY + 4);
-              ctx.lineTo(p1.x, bridgeY);
-              ctx.lineTo(p2.x, bridgeY);
-              ctx.lineTo(p2.x, bridgeY + 4);
-              ctx.stroke();
-
-              // Подпись частоты конкретного цикла прямо над волной
-              const midX = 0.5 * (p1.x + p2.x);
-              ctx.fillStyle = isGoodRate ? '#6ee7b7' : '#fcd34d';
-              ctx.fillText(`${hz.toFixed(1)} Гц`, midX, bridgeY - 2);
-            }
-          }
-        }
-
-        ctx.restore(); // Снимаем clip области истории
-
-        // =========================================================================
-        // СЛОЙ 4: ПРАВАЯ ЗОНА РЕАЛЬНОГО ВРЕМЕНИ (НА ТОЙ ЖЕ ШКАЛЕ ПОЛУТОНОВ)
-        // Показывает:
-        //  - Кронштейн текущей широты (±¢) против эталонных засечек ±50¢
-        //  - Фазовую орбиту стабильности (круг/эллипс ровности вибрато)
-        // =========================================================================
-
-        // Линия «СЕЙЧАС»
-        ctx.strokeStyle = 'rgba(226, 232, 240, 0.5)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(nowX, plotTop);
-        ctx.lineTo(nowX, plotBottom);
-        ctx.stroke();
-
-        // Живой курсор на линии «СЕЙЧАС»
+        // Живая точка текущего звука справа
         const latestPt = pitchHistory.length > 0 ? pitchHistory[pitchHistory.length - 1] : null;
-        if (latestPt && (renderTimeSec - latestPt.t < 0.2 || isFrozen)) {
+        if (latestPt && (renderTimeSec - latestPt.t < 0.18 || isFrozen)) {
           const liveY = midiToY(latestPt.smoothMidi);
-          const liveCenterY = midiToY(latestPt.centerMidi);
-          const stateColor = getStateColor(latestPt.stateCode, 1);
-
-          // Пунктирная проекция текущего центра тона в правую зону
-          ctx.save();
-          ctx.setLineDash([3, 3]);
-          ctx.strokeStyle = 'rgba(248, 250, 252, 0.45)';
+          ctx.fillStyle = getStateColor(latestPt.stateCode);
           ctx.beginPath();
-          ctx.moveTo(nowX, liveCenterY);
-          ctx.lineTo(w - 12, liveCenterY);
-          ctx.stroke();
-          ctx.restore();
-
-          // Светящаяся точка текущего голоса на линии «СЕЙЧАС»
-          ctx.fillStyle = getStateColor(latestPt.stateCode, 0.25);
-          ctx.beginPath();
-          ctx.arc(nowX, liveY, 11, 0, Math.PI * 2);
+          ctx.arc(nowX, liveY, 5.5, 0, Math.PI * 2);
           ctx.fill();
-
-          ctx.fillStyle = stateColor;
-          ctx.beginPath();
-          ctx.arc(nowX, liveY, 5, 0, Math.PI * 2);
-          ctx.fill();
-
-          // 4A. Вертикальный кронштейн ШИРОТЫ ВИБРАТО справа от линии «СЕЙЧАС»
-          const bracketX = nowX + Math.min(34, (w - nowX) * 0.28);
-          const envUpY = midiToY(latestPt.centerMidi + metrics.extentCents / 100);
-          const envLowY = midiToY(latestPt.centerMidi - metrics.extentCents / 100);
-
-          // Полоса текущего размаха
-          ctx.strokeStyle = 'rgba(34, 211, 238, 0.85)';
-          ctx.lineWidth = 3;
-          ctx.lineCap = 'round';
-          ctx.beginPath();
-          ctx.moveTo(bracketX, envUpY);
-          ctx.lineTo(bracketX, envLowY);
-          ctx.stroke();
-
-          // Лапки кронштейна широты
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
-          ctx.moveTo(bracketX - 5, envUpY);
-          ctx.lineTo(bracketX + 5, envUpY);
-          ctx.moveTo(bracketX - 5, envLowY);
-          ctx.lineTo(bracketX + 5, envLowY);
-          ctx.stroke();
-
-          // Подпись размаха прямо у кронштейна
-          ctx.fillStyle = '#67e8f9';
-          ctx.font = '600 10px "JetBrains Mono", monospace';
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(`±${Math.round(metrics.extentCents)}¢`, bracketX + 8, liveCenterY);
-
-          // 4B. Фазовое кольцо СТАБИЛЬНОСТИ (Phase-Space Orbit: Смещение vs Скорость)
-          // Когда вибрато периодичное и ровное, траектория образует правильное кольцо вокруг центра ноты
-          const rightZoneWidth = w - bracketX - 16;
-          if (rightZoneWidth > 44) {
-            const orbitCenterX = bracketX + rightZoneWidth * 0.62;
-            const orbitCenterY = liveCenterY;
-            const idealRadiusX = Math.min(rightZoneWidth * 0.34, 50 * pxPerCent);
-            const idealRadiusY = 50 * pxPerCent;
-
-            // Эталонное пунктирное кольцо (±50¢ при 6 Гц)
-            ctx.save();
-            ctx.setLineDash([2, 4]);
-            ctx.strokeStyle = 'rgba(148, 163, 184, 0.28)';
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.ellipse(orbitCenterX, orbitCenterY, idealRadiusX, idealRadiusY, 0, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.restore();
-
-            // Рисуем фазовый след за последние ~0.55 сек (~3.5 оборота вибрато)
-            ctx.beginPath();
-            let startedOrbit = false;
-            const velScale = idealRadiusX / (2 * Math.PI * 6.0 * 50); // Нормировка скорости при 6 Гц и ±50¢
-
-            for (let i = pitchHistory.length - 1; i >= 0; i--) {
-              const p = pitchHistory[i];
-              if (renderTimeSec - p.t > 0.55) break;
-              if (Math.abs(p.centerMidi - latestPt.centerMidi) > 1.0) break;
-
-              const ox = orbitCenterX + p.velocityCentsPerSec * velScale;
-              const oy = midiToY(p.centerMidi + p.offsetCents / 100);
-              if (!startedOrbit) {
-                ctx.moveTo(ox, oy);
-                startedOrbit = true;
-              } else {
-                ctx.lineTo(ox, oy);
-              }
-            }
-            ctx.strokeStyle = getStateColor(latestPt.stateCode, 0.75);
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Подпись фазовой орбиты
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '500 9px "Inter", sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('ОРБИТА ФАЗЫ', orbitCenterX, orbitCenterY + idealRadiusY + 14);
-          }
         }
-
-        // Подписи легенды в нижней кромке единого графика
-        ctx.font = '500 10px "Inter", sans-serif';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#64748b';
-        const legendY = plotTop + 12;
-        ctx.fillText('Белая ось: центр интонации  •  Зеленый коридор: эталон ±50¢  •  Скобки: частота цикла (Гц)', leftMargin + 8, legendY);
       }
 
-      /**
-       * Гладкая кривая через массив точек методом квадратичных средних точек
-       */
       function drawSmoothCurve(context, pts, xFn, yFn) {
         context.beginPath();
         const x0 = xFn(pts[0].t);
