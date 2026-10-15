@@ -1,167 +1,212 @@
 <!DOCTYPE html>
-<html lang="ru" class="dark">
+<html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#07090e" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>BelCanto Scope — Анализатор оперного вибрато</title>
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#06070a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Vibrato — Оперный анализатор</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
-
   <style>
-    :root {
-      color-scheme: dark;
-    }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
       user-select: none;
       -webkit-user-select: none;
     }
+
     html, body {
       margin: 0;
       padding: 0;
       width: 100%;
-      height: 100dvh;
+      height: 100%;
       overflow: hidden;
-      background-color: #07090e;
+      background-color: #06070a;
+      color: #e2e8f0;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      color: #f1f5f9;
-      touch-action: manipulation;
+      touch-action: none;
     }
-    .font-mono-num {
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: crosshair;
+    }
+
+    .mono-num {
       font-family: 'JetBrains Mono', monospace;
       font-variant-numeric: tabular-nums;
     }
-    canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
+
+    /* Плавное исчезновение стартового экрана */
+    #startOverlay {
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s;
+    }
+    #startOverlay.hidden-overlay {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
     }
   </style>
 </head>
-<body class="relative w-full h-full select-none bg-[#080b10]">
+<body class="relative w-screen h-screen overflow-hidden bg-[#06070a]">
 
-  <!-- Единственный полноэкранный холст -->
-  <canvas id="vibratoCanvas" class="w-full h-full cursor-pointer"></canvas>
+  <!-- Единственный полноэкранный график -->
+  <canvas id="pitchCanvas"></canvas>
 
-  <!-- Лаконичная верхняя строка показателей без карточек и лишних подписей -->
-  <div id="hudOverlay" class="pointer-events-none fixed inset-x-0 top-0 z-10 px-4 py-3 bg-gradient-to-b from-[#080b10] via-[#080b10]/85 to-transparent">
-    <div class="grid grid-cols-4 gap-2 max-w-3xl mx-auto text-center">
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-slate-500">Нота</div>
-        <div id="hudNoteName" class="text-2xl sm:text-3xl font-bold font-mono-num text-white">—</div>
+  <!-- Минималистичная верхняя панель метрик (прозрачный HUD поверх графика) -->
+  <div id="hud" class="pointer-events-none fixed top-0 left-0 right-0 z-10 flex items-start justify-between px-4 pt-3 pb-2 sm:px-6 sm:pt-4 opacity-0 transition-opacity duration-500">
+    <!-- Текущая нота и отклонение центра вибрато -->
+    <div class="flex items-baseline gap-3">
+      <div id="noteDisplay" class="mono-num text-4xl sm:text-5xl font-semibold tracking-tight text-slate-100 leading-none">
+        —
       </div>
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-slate-500">Частота</div>
-        <div class="flex items-baseline justify-center gap-1">
-          <span id="hudRateValue" class="text-2xl sm:text-3xl font-bold font-mono-num text-slate-300">—</span>
-          <span class="text-xs text-slate-500 font-mono-num">Гц</span>
-        </div>
+      <div class="flex flex-col">
+        <span id="freqDisplay" class="mono-num text-xs sm:text-sm text-slate-400 leading-tight">— Гц</span>
+        <span id="centsDisplay" class="mono-num text-[11px] sm:text-xs text-slate-500 leading-tight">центр 0 ц</span>
       </div>
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-slate-500">Широта</div>
-        <div class="flex items-baseline justify-center gap-0.5">
-          <span id="hudWidthValue" class="text-2xl sm:text-3xl font-bold font-mono-num text-slate-300">—</span>
-          <span class="text-xs text-slate-500 font-mono-num">¢</span>
-        </div>
+    </div>
+
+    <!-- Метрики вибрато: Периодичность (Гц) и Широта (полутоны) -->
+    <div class="flex items-center gap-5 sm:gap-7 bg-[#0b0d13]/80 backdrop-blur-md border border-slate-800/60 rounded-xl px-3.5 py-2">
+      <div class="flex flex-col items-end">
+        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Частота</span>
+        <span id="rateDisplay" class="mono-num text-base sm:text-lg font-medium text-cyan-400 leading-tight">— Гц</span>
       </div>
-      <div>
-        <div class="text-[10px] uppercase tracking-wider text-slate-500">Ровность</div>
-        <div class="flex items-baseline justify-center gap-0.5">
-          <span id="hudStabilityValue" class="text-2xl sm:text-3xl font-bold font-mono-num text-slate-300">—</span>
-          <span class="text-xs text-slate-500 font-mono-num">%</span>
-        </div>
+      <div class="h-6 w-[1px] bg-slate-800/80"></div>
+      <div class="flex flex-col items-end">
+        <span class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Широта</span>
+        <span id="extentDisplay" class="mono-num text-base sm:text-lg font-medium text-indigo-400 leading-tight">±— пт</span>
       </div>
     </div>
   </div>
 
-  <!-- Минималистичный стартовый экран с одной кнопкой микрофона -->
-  <div id="startOverlay" class="fixed inset-0 z-20 flex flex-col items-center justify-center bg-[#080b10] cursor-pointer transition-opacity duration-200">
-    <div class="w-20 h-20 rounded-full bg-emerald-500/15 border border-emerald-500/50 flex items-center justify-center text-emerald-400 active:scale-95 transition-transform">
-      <svg class="w-9 h-9" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+  <!-- Минималистичный индикатор паузы при касании графика -->
+  <div id="pauseBadge" class="pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 z-10 hidden items-center gap-2 rounded-full bg-slate-900/90 border border-slate-700/60 px-3.5 py-1 text-xs text-slate-300 tracking-wide backdrop-blur-md">
+    <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+    <span>ПАУЗА</span>
+  </div>
+
+  <!-- Экран первого касания (необходим для активации микрофона в мобильных браузерах) -->
+  <div id="startOverlay" class="fixed inset-0 z-20 flex flex-col items-center justify-center bg-[#06070a]/95 backdrop-blur-sm px-6 text-center cursor-pointer">
+    <div class="group relative flex h-20 w-20 items-center justify-center rounded-full border border-slate-800 bg-slate-900/60 transition-transform duration-300 active:scale-95">
+      <div class="absolute inset-0 rounded-full bg-cyan-500/10 blur-xl group-hover:bg-cyan-500/20 transition-all"></div>
+      <svg class="h-8 w-8 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
       </svg>
     </div>
-    <span class="mt-4 text-sm font-medium text-slate-300">Нажмите для включения микрофона</span>
-    <div id="errorBox" class="hidden mt-4 max-w-xs p-3 rounded-lg bg-rose-950/80 border border-rose-700/60 text-xs text-rose-200 text-center"></div>
-  </div>
-
-  <!-- Компактный индикатор паузы -->
-  <div id="freezeBadge" class="hidden pointer-events-none fixed bottom-4 left-1/2 -translate-x-1/2 z-10 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-600 text-slate-200 text-xs font-medium">
-    Пауза
+    <p id="startPromptText" class="mt-5 text-sm font-normal tracking-wide text-slate-400">
+      Коснитесь экрана для запуска микрофона
+    </p>
   </div>
 
   <script>
     (() => {
       'use strict';
 
+      // Ноты в стандартной полутоновой шкале
       const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
       const A4_FREQ = 440.0;
       const A4_MIDI = 69;
 
-      // Оперные ориентиры: 5–7 Гц и ±35..75 центов
-      const IDEAL_RATE_MIN = 5.0;
-      const IDEAL_RATE_MAX = 7.0;
-      const IDEAL_EXTENT_MIN = 35;
-      const IDEAL_EXTENT_MAX = 75;
-      const STRAIGHT_TONE_MAX = 18;
+      // Вокальный диапазон фундаментальной частоты f0 (от баса профундо ~75 Гц до сопрано C6/F6 ~1450 Гц)
+      const MIN_VOCAL_FREQ = 75.0;
+      const MAX_VOCAL_FREQ = 1450.0;
 
-      const HISTORY_SECONDS = 3.2;
+      // Параметры фильтрации шума, дыхания и шипящих согласных (с, ш, щ, ц, ч, ф)
+      const RMS_ONSET_THRESHOLD = 0.0085;     // Порог включения голоса
+      const RMS_HOLD_THRESHOLD = 0.0055;      // Гистерезис удержанияпевческого тона
+      const MAX_ZCR_VOICED = 0.22;            // Отсечение высокочастотных шипящих по пересечению нуля
+      const HF_LF_RATIO_MAX = 1.65;           // Отношение ВЧ-энергии к НЧ (шипящие дают высокий ВЧ-всплеск)
+      const NSDF_CLARITY_THRESHOLD = 0.78;    // Порог гармонической периодичности (McLeod NSDF)
+      const MAX_SEMITONE_JUMP_PER_FRAME = 2.8;// Защита от мгновенных октавных скачков на атаке
 
-      const canvas = document.getElementById('vibratoCanvas');
+      // Параметры временного окна графика
+      const HISTORY_SECONDS = 4.2;            // Длительность видимой истории на экране (сек)
+      const SAMPLE_FPS = 60;                  // Частота записи точек траектории
+      const BUFFER_CAPACITY = Math.ceil(HISTORY_SECONDS * SAMPLE_FPS) + 60;
+      const VISIBLE_SEMITONE_SPAN = 6.5;      // Диапазон по вертикали (полутонов), чтобы вибрато было крупным
+
+      const canvas = document.getElementById('pitchCanvas');
       const ctx = canvas.getContext('2d', { alpha: false });
       const startOverlay = document.getElementById('startOverlay');
-      const errorBox = document.getElementById('errorBox');
-      const freezeBadge = document.getElementById('freezeBadge');
+      const startPromptText = document.getElementById('startPromptText');
+      const hud = document.getElementById('hud');
+      const pauseBadge = document.getElementById('pauseBadge');
 
-      const hudNoteName = document.getElementById('hudNoteName');
-      const hudRateValue = document.getElementById('hudRateValue');
-      const hudWidthValue = document.getElementById('hudWidthValue');
-      const hudStabilityValue = document.getElementById('hudStabilityValue');
+      const noteDisplay = document.getElementById('noteDisplay');
+      const freqDisplay = document.getElementById('freqDisplay');
+      const centsDisplay = document.getElementById('centsDisplay');
+      const rateDisplay = document.getElementById('rateDisplay');
+      const extentDisplay = document.getElementById('extentDisplay');
 
       let audioCtx = null;
-      let analyser = null;
-      let timeBuffer = null;
+      let rawAnalyser = null;
+      let vocalBandAnalyser = null;
+      let rawTimeBuffer = null;
+      let bandTimeBuffer = null;
+      let nsdfBuffer = null;
+
       let isRunning = false;
-      let isFrozen = false;
-      let freezeTime = 0;
+      let isPaused = false;
 
-      const pitchHistory = [];
-      const extremaHistory = [];
+      // Состояние детектора голоса и анти-спайк медианного фильтра
+      let isVoicedState = false;
+      let unvoicedFramesCount = 0;
+      const recentMidiWindow = []; // Буфер из 3 последних значений для медианной фильтрации
+      let lastAcceptedMidi = null;
+      let smoothedInstantMidi = null;
 
-      let currentCenterMidi = 69.0;
-      let displayCenterMidi = 69.0;
-      let lastValidPitchTime = 0;
-      let smoothedMidiState = null;
-      let prevFrameTime = performance.now() / 1000;
+      // Плавная камера по вертикали (центрируется по ядру голоса, не качаясь от самого вибрато)
+      let cameraCenterMidi = 64.0; // E4 по умолчанию
+      let targetCameraMidi = 64.0;
 
-      const metrics = {
-        active: false,
-        noteName: '—',
-        rateHz: 0,
-        extentCents: 0,
-        stabilityPct: 0,
-        cyclesCount: 0,
-        stateCode: 'idle'
-      };
+      // Кольцевой буфер истории для отрисовки графика без аллокаций памяти (Zero-GC)
+      const historyTime = new Float64Array(BUFFER_CAPACITY);
+      const historyMidi = new Float32Array(BUFFER_CAPACITY);
+      const historyCenter = new Float32Array(BUFFER_CAPACITY);
+      const historyEnvUpper = new Float32Array(BUFFER_CAPACITY);
+      const historyEnvLower = new Float32Array(BUFFER_CAPACITY);
+      const historyVoiced = new Uint8Array(BUFFER_CAPACITY);
+      let historyHead = 0;
+      let historyCount = 0;
 
-      let extremumCandidate = null;
-      let lastExtremumType = null;
+      // Вспомогательные функции перевода частот и нот
+      function freqToMidi(freq) {
+        return A4_MIDI + 12.0 * Math.log2(freq / A4_FREQ);
+      }
+
+      function midiToFreq(midi) {
+        return A4_FREQ * Math.pow(2.0, (midi - A4_MIDI) / 12.0);
+      }
+
+      function midiToNoteLabel(midiInt) {
+        const noteIndex = ((midiInt % 12) + 12) % 12;
+        const octave = Math.floor(midiInt / 12) - 1;
+        return NOTE_NAMES[noteIndex] + octave;
+      }
+
+      function isBlackKey(midiInt) {
+        const n = ((midiInt % 12) + 12) % 12;
+        return n === 1 || n === 3 || n === 6 || n === 8 || n === 10;
+      }
+
+      function medianOf3(a, b, c) {
+        return Math.max(Math.min(a, b), Math.min(Math.max(a, b), c));
+      }
 
       let viewWidth = window.innerWidth;
       let viewHeight = window.innerHeight;
-      let dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      let dpr = Math.min(window.devicePixelRatio || 1, 3);
 
       function resizeCanvas() {
         viewWidth = window.innerWidth;
         viewHeight = window.innerHeight;
-        dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        dpr = Math.min(window.devicePixelRatio || 1, 3);
         canvas.width = Math.floor(viewWidth * dpr);
         canvas.height = Math.floor(viewHeight * dpr);
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -170,632 +215,12 @@
       window.addEventListener('resize', resizeCanvas, { passive: true });
       resizeCanvas();
 
-      // Удержание экрана включенным на пюпитре (Screen Wake Lock API)
-      async function requestScreenWakeLock() {
-        try {
-          if ('wakeLock' in navigator) {
-            await navigator.wakeLock.request('screen');
-          }
-        } catch (_) {
-          // Игнорируем, если браузер не разрешил Wake Lock
-        }
-      }
-
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && isRunning) {
-          requestScreenWakeLock();
-        }
-      });
-
-      /**
-       * Высокоточный алгоритм определения основного тона (f0) на базе
-       * Normalized Square Difference Function (McLeod Pitch Method / MPM).
-       * Устойчив к мощным оперным формантам (2.8–3.2 кГц) и не прыгает на октаву вверх.
-       */
-      function detectPitchMPM(buffer, sampleRate) {
-        const N = buffer.length;
-
-        // 1. Вычисляем уровень сигнала (RMS) и среднее значение (DC-offset)
-        let sumSq = 0;
-        let mean = 0;
-        for (let i = 0; i < N; i++) {
-          mean += buffer[i];
-        }
-        mean /= N;
-
-        for (let i = 0; i < N; i++) {
-          const v = buffer[i] - mean;
-          sumSq += v * v;
-        }
-        const rms = Math.sqrt(sumSq / N);
-
-        // Порог тишины (отсекает фоновый шум комнаты)
-        if (rms < 0.008) {
-          return null;
-        }
-
-        // Диапазон певческого голоса: от Баса (E2 ~ 75 Гц) до Колоратурного сопрано (F6 ~ 1400 Гц)
-        const minFreq = 72;
-        const maxFreq = 1450;
-        const minLag = Math.max(2, Math.floor(sampleRate / maxFreq));
-        const maxLag = Math.min(Math.floor(N * 0.65), Math.ceil(sampleRate / minFreq));
-
-        // Используем окно анализа M = min(N, 1536) для быстродействия на 60 FPS
-        const M = Math.min(N, 1536);
-        const limitLag = Math.min(maxLag, M - 4);
-
-        const nsdf = new Float32Array(limitLag + 1);
-
-        // Вычисляем NSDF(tau) = 2 * r(tau) / m(tau)
-        for (let tau = minLag; tau <= limitLag; tau++) {
-          let acf = 0;
-          let norm = 0;
-          const count = M - tau;
-          for (let i = 0; i < count; i++) {
-            const x0 = buffer[i] - mean;
-            const x1 = buffer[i + tau] - mean;
-            acf += x0 * x1;
-            norm += x0 * x0 + x1 * x1;
-          }
-          nsdf[tau] = norm > 1e-9 ? (2 * acf) / norm : 0;
-        }
-
-        // Ищем положительные области (между пересечениями нуля) и локальные максимумы в них
-        const peaks = [];
-        let inPositiveRegion = false;
-        let currentMaxVal = -1;
-        let currentMaxTau = -1;
-
-        for (let tau = minLag; tau <= limitLag; tau++) {
-          const val = nsdf[tau];
-          if (val > 0) {
-            if (!inPositiveRegion) {
-              inPositiveRegion = true;
-              currentMaxVal = val;
-              currentMaxTau = tau;
-            } else if (val > currentMaxVal) {
-              currentMaxVal = val;
-              currentMaxTau = tau;
-            }
-          } else if (inPositiveRegion) {
-            if (currentMaxVal > 0.45) {
-              peaks.push({ tau: currentMaxTau, val: currentMaxVal });
-            }
-            inPositiveRegion = false;
-          }
-        }
-        if (inPositiveRegion && currentMaxVal > 0.45) {
-          peaks.push({ tau: currentMaxTau, val: currentMaxVal });
-        }
-
-        if (peaks.length === 0) return null;
-
-        // Глобальный максимум среди всех пиков
-        let highestPeakVal = 0;
-        for (let i = 0; i < peaks.length; i++) {
-          if (peaks[i].val > highestPeakVal) {
-            highestPeakVal = peaks[i].val;
-          }
-        }
-
-        // Порог чистоты тона (clarity)
-        if (highestPeakVal < 0.58) return null;
-
-        // Ключевой шаг MPM: выбираем ПЕРВЫЙ пик, превышающий k * highestPeakVal (k = 0.86)
-        // Это предотвращает деление частоты пополам (субгармоники)
-        const threshold = highestPeakVal * 0.86;
-        let chosenPeak = peaks[0];
-        for (let i = 0; i < peaks.length; i++) {
-          if (peaks[i].val >= threshold) {
-            chosenPeak = peaks[i];
-            break;
-          }
-        }
-
-        const tau = chosenPeak.tau;
-        let refinedTau = tau;
-
-        // Параболическая интерполяция для суб-семпловой точности (точность < 0.3 цента)
-        if (tau > minLag && tau < limitLag) {
-          const y1 = nsdf[tau - 1];
-          const y2 = nsdf[tau];
-          const y3 = nsdf[tau + 1];
-          const denom = y1 - 2 * y2 + y3;
-          if (Math.abs(denom) > 1e-7) {
-            const delta = (0.5 * (y1 - y3)) / denom;
-            if (Math.abs(delta) < 1) {
-              refinedTau = tau + delta;
-            }
-          }
-        }
-
-        const freq = sampleRate / refinedTau;
-        if (freq < minFreq || freq > maxFreq) return null;
-
-        return {
-          freq,
-          clarity: chosenPeak.val,
-          rms
-        };
-      }
-
-      /**
-       * Перевод частоты (Гц) в непрерывное значение MIDI (полутоны, где 69.00 = A4 440 Гц)
-       */
-      function freqToMidi(freq) {
-        return A4_MIDI + 12 * Math.log2(freq / A4_FREQ);
-      }
-
-      function midiToFreq(midi) {
-        return A4_FREQ * Math.pow(2, (midi - A4_MIDI) / 12);
-      }
-
-      function formatNoteInfo(midi) {
-        const nearestMidi = Math.round(midi);
-        const cents = Math.round((midi - nearestMidi) * 100);
-        const noteIndex = ((nearestMidi % 12) + 12) % 12;
-        const octave = Math.floor(nearestMidi / 12) - 1;
-        return {
-          nearestMidi,
-          name: `${NOTE_NAMES[noteIndex]}${octave}`,
-          cents
-        };
-      }
-
-      function processPitchSample(nowSec, detection) {
-        const dt = Math.min(0.1, Math.max(0.004, nowSec - prevFrameTime));
-        prevFrameTime = nowSec;
-
-        const cutoffTime = nowSec - (HISTORY_SECONDS + 0.5);
-        while (pitchHistory.length > 0 && pitchHistory[0].t < cutoffTime) {
-          pitchHistory.shift();
-        }
-        while (extremaHistory.length > 0 && extremaHistory[0].t < cutoffTime) {
-          extremaHistory.shift();
-        }
-
-        if (!detection) {
-          if (nowSec - lastValidPitchTime > 0.16) {
-            smoothedMidiState = null;
-            extremumCandidate = null;
-            lastExtremumType = null;
-            metrics.active = false;
-          }
-          updateCamera(dt, null);
-          return;
-        }
-
-        const rawMidi = freqToMidi(detection.freq);
-
-        // При смене ноты или после паузы мгновенно захватываем новую высоту
-        if (smoothedMidiState === null || Math.abs(rawMidi - smoothedMidiState) > 1.2) {
-          smoothedMidiState = rawMidi;
-          currentCenterMidi = rawMidi;
-          extremumCandidate = null;
-          lastExtremumType = null;
-          extremaHistory.length = 0;
-        } else {
-          const alpha = 1 - Math.exp(-dt * 75);
-          smoothedMidiState += alpha * (rawMidi - smoothedMidiState);
-        }
-
-        lastValidPitchTime = nowSec;
-        const smoothMidi = smoothedMidiState;
-
-        // Быстрое вычисление центра ноты за последние 0.30 с
-        const windowStart = nowSec - 0.30;
-        let sumMidi = smoothMidi;
-        let minWin = smoothMidi;
-        let maxWin = smoothMidi;
-        let countWin = 1;
-
-        for (let i = pitchHistory.length - 1; i >= 0; i--) {
-          const pt = pitchHistory[i];
-          if (pt.t < windowStart) break;
-          if (Math.abs(pt.smoothMidi - smoothMidi) < 1.2) {
-            sumMidi += pt.smoothMidi;
-            if (pt.smoothMidi < minWin) minWin = pt.smoothMidi;
-            if (pt.smoothMidi > maxWin) maxWin = pt.smoothMidi;
-            countWin++;
-          } else {
-            break;
-          }
-        }
-
-        const targetCenterMidi = countWin > 4
-          ? 0.5 * (minWin + maxWin) * 0.6 + (sumMidi / countWin) * 0.4
-          : sumMidi / countWin;
-
-        // Быстрая подстройка центра (чтобы ось не отставала от голоса)
-        const centerAlpha = 1 - Math.exp(-dt * 22);
-        currentCenterMidi += centerAlpha * (targetCenterMidi - currentCenterMidi);
-
-        const offsetCents = (smoothMidi - currentCenterMidi) * 100;
-
-        detectVibratoExtrema(nowSec, smoothMidi, currentCenterMidi, offsetCents);
-        computeVibratoStatistics(nowSec, currentCenterMidi, offsetCents);
-
-        pitchHistory.push({
-          t: nowSec,
-          smoothMidi,
-          centerMidi: currentCenterMidi,
-          offsetCents,
-          stateCode: metrics.stateCode
-        });
-
-        updateCamera(dt, smoothMidi);
-      }
-
-      function detectVibratoExtrema(t, midi, centerMidi, offsetCents) {
-        const HYSTERESIS_CENTS = 13;
-        const MIN_EXCURSION = 10;
-
-        if (!extremumCandidate) {
-          extremumCandidate = {
-            maxOffset: offsetCents, maxT: t, maxMidi: midi,
-            minOffset: offsetCents, minT: t, minMidi: midi
-          };
-          return;
-        }
-
-        if (offsetCents > extremumCandidate.maxOffset) {
-          extremumCandidate.maxOffset = offsetCents;
-          extremumCandidate.maxT = t;
-          extremumCandidate.maxMidi = midi;
-        }
-        if (offsetCents < extremumCandidate.minOffset) {
-          extremumCandidate.minOffset = offsetCents;
-          extremumCandidate.minT = t;
-          extremumCandidate.minMidi = midi;
-        }
-
-        if (
-          lastExtremumType !== 'peak' &&
-          extremumCandidate.maxOffset >= MIN_EXCURSION &&
-          extremumCandidate.maxOffset - offsetCents >= HYSTERESIS_CENTS
-        ) {
-          registerExtremum({
-            t: extremumCandidate.maxT,
-            midi: extremumCandidate.maxMidi,
-            type: 'peak'
-          });
-          lastExtremumType = 'peak';
-          extremumCandidate.minOffset = offsetCents;
-          extremumCandidate.minT = t;
-          extremumCandidate.minMidi = midi;
-        } else if (
-          lastExtremumType !== 'trough' &&
-          extremumCandidate.minOffset <= -MIN_EXCURSION &&
-          offsetCents - extremumCandidate.minOffset >= HYSTERESIS_CENTS
-        ) {
-          registerExtremum({
-            t: extremumCandidate.minT,
-            midi: extremumCandidate.minMidi,
-            type: 'trough'
-          });
-          lastExtremumType = 'trough';
-          extremumCandidate.maxOffset = offsetCents;
-          extremumCandidate.maxT = t;
-          extremumCandidate.maxMidi = midi;
-        }
-      }
-
-      function registerExtremum(ext) {
-        let periodHz = 0;
-        let swingCents = 0;
-
-        for (let i = extremaHistory.length - 1; i >= 0; i--) {
-          const prev = extremaHistory[i];
-          if (prev.type === ext.type) {
-            const dtPeriod = ext.t - prev.t;
-            if (dtPeriod >= 0.095 && dtPeriod <= 0.36) {
-              periodHz = 1.0 / dtPeriod;
-            }
-            break;
-          }
-        }
-
-        if (extremaHistory.length > 0) {
-          const prevOpp = extremaHistory[extremaHistory.length - 1];
-          if (prevOpp.type !== ext.type && (ext.t - prevOpp.t) <= 0.25) {
-            swingCents = Math.abs(ext.midi - prevOpp.midi) * 50;
-          }
-        }
-
-        ext.periodHz = periodHz;
-        ext.swingCents = swingCents;
-        extremaHistory.push(ext);
-      }
-
-      function computeVibratoStatistics(nowSec, centerMidi, offsetCents) {
-        metrics.active = true;
-        metrics.noteName = formatNoteInfo(centerMidi).name;
-
-        const recentExtrema = extremaHistory.filter(e => e.t >= nowSec - 1.5);
-        const validPeriods = [];
-        const validSwings = [];
-
-        for (let i = 0; i < recentExtrema.length; i++) {
-          const e = recentExtrema[i];
-          if (e.periodHz >= 2.8 && e.periodHz <= 10.5) validPeriods.push(e.periodHz);
-          if (e.swingCents >= 10 && e.swingCents <= 180) validSwings.push(e.swingCents);
-        }
-
-        const lastExtTime = recentExtrema.length > 0 ? recentExtrema[recentExtrema.length - 1].t : 0;
-        const timeSinceLastExtremum = nowSec - lastExtTime;
-
-        if (validPeriods.length >= 2 && timeSinceLastExtremum < 0.45) {
-          const meanRate = validPeriods.reduce((a, b) => a + b, 0) / validPeriods.length;
-          metrics.rateHz = metrics.rateHz > 0 ? metrics.rateHz * 0.3 + meanRate * 0.7 : meanRate;
-
-          const meanSwing = validSwings.length > 0
-            ? validSwings.reduce((a, b) => a + b, 0) / validSwings.length
-            : Math.abs(offsetCents);
-          metrics.extentCents = metrics.extentCents > 0 ? metrics.extentCents * 0.3 + meanSwing * 0.7 : meanSwing;
-
-          const rateCV = computeCoefficientOfVariation(validPeriods);
-          const swingCV = validSwings.length >= 2 ? computeCoefficientOfVariation(validSwings) : 0.08;
-          const rateStability = Math.max(0, Math.min(100, 100 * (1 - rateCV * 3.2)));
-          const ampStability = Math.max(0, Math.min(100, 100 * (1 - swingCV * 2.1)));
-          const rawStability = 0.6 * rateStability + 0.4 * ampStability;
-
-          metrics.stabilityPct = Math.round(
-            metrics.stabilityPct > 0 ? metrics.stabilityPct * 0.35 + rawStability * 0.65 : rawStability
-          );
-          metrics.cyclesCount = Math.floor(recentExtrema.length / 2);
-
-          if (metrics.extentCents < STRAIGHT_TONE_MAX) {
-            metrics.stateCode = 'straight';
-          } else if (metrics.rateHz < IDEAL_RATE_MIN || metrics.rateHz > IDEAL_RATE_MAX || metrics.extentCents > IDEAL_EXTENT_MAX + 15) {
-            metrics.stateCode = 'warn';
-          } else {
-            metrics.stateCode = 'optimal';
-          }
-        } else {
-          let recentMaxDev = 0;
-          for (let i = pitchHistory.length - 1; i >= 0; i--) {
-            if (nowSec - pitchHistory[i].t > 0.3) break;
-            recentMaxDev = Math.max(recentMaxDev, Math.abs(pitchHistory[i].offsetCents));
-          }
-          metrics.extentCents = metrics.extentCents * 0.75 + recentMaxDev * 0.25;
-          if (timeSinceLastExtremum >= 0.45) {
-            metrics.rateHz = 0;
-            metrics.stabilityPct = 0;
-            metrics.cyclesCount = 0;
-            metrics.stateCode = 'straight';
-          }
-        }
-      }
-
-      function computeCoefficientOfVariation(arr) {
-        if (arr.length < 2) return 0;
-        const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-        if (Math.abs(mean) < 1e-6) return 0;
-        let sqDiff = 0;
-        for (let i = 0; i < arr.length; i++) {
-          const d = arr[i] - mean;
-          sqDiff += d * d;
-        }
-        return Math.sqrt(sqDiff / arr.length) / mean;
-      }
-
-      /**
-       * Мгновенное удержание голоса в видимой области экрана:
-       * при больших скачках камера сразу переходит за голосом, не давая линии уйти за край.
-       */
-      function updateCamera(dt, liveMidi) {
-        const fastAlpha = 1 - Math.exp(-dt * 26);
-        displayCenterMidi += fastAlpha * (currentCenterMidi - displayCenterMidi);
-
-        // Жесткое ограничение: голос никогда не может отклониться от центра экрана больше чем на 1.2 полутона
-        if (liveMidi !== null) {
-          const maxOffsetSemitones = 1.2;
-          if (liveMidi - displayCenterMidi > maxOffsetSemitones) {
-            displayCenterMidi = liveMidi - maxOffsetSemitones;
-          } else if (displayCenterMidi - liveMidi > maxOffsetSemitones) {
-            displayCenterMidi = liveMidi + maxOffsetSemitones;
-          }
-        }
-      }
-
-      let lastHudUpdate = 0;
-      function updateHudDOM(nowMs) {
-        if (nowMs - lastHudUpdate < 50) return;
-        lastHudUpdate = nowMs;
-
-        if (!metrics.active && !isFrozen) return;
-
-        hudNoteName.textContent = metrics.noteName;
-
-        if (metrics.rateHz > 0) {
-          hudRateValue.textContent = metrics.rateHz.toFixed(1);
-          const rateOk = metrics.rateHz >= IDEAL_RATE_MIN && metrics.rateHz <= IDEAL_RATE_MAX;
-          hudRateValue.className = `text-2xl sm:text-3xl font-bold font-mono-num ${rateOk ? 'text-emerald-400' : 'text-amber-400'}`;
-        } else {
-          hudRateValue.textContent = '—';
-          hudRateValue.className = 'text-2xl sm:text-3xl font-bold font-mono-num text-slate-400';
-        }
-
-        const ext = Math.round(metrics.extentCents);
-        hudWidthValue.textContent = `±${ext}`;
-        const widthOk = ext >= IDEAL_EXTENT_MIN && ext <= IDEAL_EXTENT_MAX;
-        hudWidthValue.className = `text-2xl sm:text-3xl font-bold font-mono-num ${widthOk ? 'text-emerald-400' : 'text-sky-300'}`;
-
-        if (metrics.rateHz > 0 && metrics.cyclesCount >= 1) {
-          hudStabilityValue.textContent = `${metrics.stabilityPct}`;
-          const stabOk = metrics.stabilityPct >= 80;
-          hudStabilityValue.className = `text-2xl sm:text-3xl font-bold font-mono-num ${stabOk ? 'text-emerald-400' : 'text-amber-400'}`;
-        } else {
-          hudStabilityValue.textContent = '—';
-          hudStabilityValue.className = 'text-2xl sm:text-3xl font-bold font-mono-num text-slate-400';
-        }
-      }
-
-      function getStateColor(stateCode) {
-        if (stateCode === 'optimal') return '#10b981'; // Зеленый (норма)
-        if (stateCode === 'warn') return '#f59e0b';    // Желтый (отклонение)
-        return '#38bdf8';                              // Голубой (прямой тон)
-      }
-
-      function renderUnifiedGraph(renderTimeSec) {
-        const w = viewWidth;
-        const h = viewHeight;
-
-        ctx.fillStyle = '#080b10';
-        ctx.fillRect(0, 0, w, h);
-
-        const plotTop = 68;
-        const plotBottom = h - 16;
-        const plotHeight = Math.max(120, plotBottom - plotTop);
-
-        const leftMargin = 48;
-        const nowX = w - 24;
-        const traceWidth = Math.max(100, nowX - leftMargin);
-
-        // Отображаем 4.6 полутона по вертикали — голос всегда свободно помещается на экране
-        const visibleSemitones = 4.6;
-        const pxPerSemitone = plotHeight / visibleSemitones;
-        const pxPerCent = pxPerSemitone / 100;
-        const plotCenterY = plotTop + plotHeight * 0.5;
-
-        const midiToY = (midi) => plotCenterY - (midi - displayCenterMidi) * pxPerSemitone;
-        const timeToX = (t) => nowX - ((renderTimeSec - t) / HISTORY_SECONDS) * traceWidth;
-
-        // 1. Зеленый коридор эталонной широты вибрато (±50 центов вокруг текущей ноты)
-        const activeCenterMidi = metrics.active || isFrozen ? currentCenterMidi : Math.round(displayCenterMidi);
-        const centerLineY = midiToY(activeCenterMidi);
-        const corridorHalfPx = 50 * pxPerCent;
-
-        ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
-        ctx.fillRect(leftMargin, centerLineY - corridorHalfPx, traceWidth, corridorHalfPx * 2);
-
-        // Пунктирные границы ±50 центов
-        ctx.save();
-        ctx.setLineDash([4, 6]);
-        ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
-        ctx.lineWidth = 1;
-        [-50, 50].forEach(c => {
-          const y = centerLineY - c * pxPerCent;
-          ctx.beginPath();
-          ctx.moveTo(leftMargin, y);
-          ctx.lineTo(nowX, y);
-          ctx.stroke();
-        });
-        ctx.restore();
-
-        // Ось центра тона
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(leftMargin, centerLineY);
-        ctx.lineTo(nowX, centerLineY);
-        ctx.stroke();
-
-        // 2. Горизонтальная сетка нот (полутонов)
-        const minVisibleMidi = Math.floor(displayCenterMidi - visibleSemitones * 0.55);
-        const maxVisibleMidi = Math.ceil(displayCenterMidi + visibleSemitones * 0.55);
-        const nearestActiveMidi = Math.round(activeCenterMidi);
-
-        for (let m = minVisibleMidi; m <= maxVisibleMidi; m++) {
-          const y = midiToY(m);
-          if (y < plotTop || y > plotBottom) continue;
-
-          const isTarget = m === nearestActiveMidi;
-          const noteInfo = formatNoteInfo(m);
-
-          ctx.strokeStyle = isTarget ? 'rgba(148, 163, 184, 0.28)' : 'rgba(30, 41, 59, 0.7)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(leftMargin, y);
-          ctx.lineTo(nowX, y);
-          ctx.stroke();
-
-          ctx.fillStyle = isTarget ? '#f8fafc' : '#64748b';
-          ctx.font = isTarget ? '700 12px "JetBrains Mono", monospace' : '500 11px "JetBrains Mono", monospace';
-          ctx.textAlign = 'right';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(noteInfo.name, leftMargin - 8, y);
-        }
-
-        // 3. Кривая голоса
-        const segments = [];
-        let currentSeg = [];
-        for (let i = 0; i < pitchHistory.length; i++) {
-          const pt = pitchHistory[i];
-          if (pt.t < renderTimeSec - HISTORY_SECONDS) continue;
-          if (pt.t > renderTimeSec) break;
-
-          if (currentSeg.length > 0) {
-            const prev = currentSeg[currentSeg.length - 1];
-            if (pt.t - prev.t > 0.16 || Math.abs(pt.smoothMidi - prev.smoothMidi) > 1.5) {
-              segments.push(currentSeg);
-              currentSeg = [];
-            }
-          }
-          currentSeg.push(pt);
-        }
-        if (currentSeg.length > 0) segments.push(currentSeg);
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(leftMargin, plotTop, traceWidth, plotHeight);
-        ctx.clip();
-
-        segments.forEach(seg => {
-          if (seg.length < 2) return;
-          const lastState = seg[seg.length - 1].stateCode;
-          ctx.strokeStyle = getStateColor(lastState);
-          ctx.lineWidth = 3;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          drawSmoothCurve(ctx, seg, timeToX, midiToY);
-          ctx.stroke();
-        });
-
-        // Точки на пиках и впадинах для наглядного контроля ровности волны
-        for (let i = 0; i < extremaHistory.length; i++) {
-          const ext = extremaHistory[i];
-          if (ext.t < renderTimeSec - HISTORY_SECONDS || ext.t > renderTimeSec) continue;
-          const x = timeToX(ext.t);
-          const y = midiToY(ext.midi);
-          ctx.fillStyle = '#f8fafc';
-          ctx.beginPath();
-          ctx.arc(x, y, 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-
-        ctx.restore();
-
-        // Живая точка текущего звука справа
-        const latestPt = pitchHistory.length > 0 ? pitchHistory[pitchHistory.length - 1] : null;
-        if (latestPt && (renderTimeSec - latestPt.t < 0.18 || isFrozen)) {
-          const liveY = midiToY(latestPt.smoothMidi);
-          ctx.fillStyle = getStateColor(latestPt.stateCode);
-          ctx.beginPath();
-          ctx.arc(nowX, liveY, 5.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      function drawSmoothCurve(context, pts, xFn, yFn) {
-        context.beginPath();
-        const x0 = xFn(pts[0].t);
-        const y0 = yFn(pts[0].smoothMidi);
-        context.moveTo(x0, y0);
-
-        for (let i = 1; i < pts.length - 1; i++) {
-          const xc = 0.5 * (xFn(pts[i].t) + xFn(pts[i + 1].t));
-          const yc = 0.5 * (yFn(pts[i].smoothMidi) + yFn(pts[i + 1].smoothMidi));
-          context.quadraticCurveTo(xFn(pts[i].t), yFn(pts[i].smoothMidi), xc, yc);
-        }
-
-        const last = pts[pts.length - 1];
-        context.lineTo(xFn(last.t), yFn(last.smoothMidi));
-      }
-
       async function initAudio() {
+        if (isRunning) return;
+
         try {
-          errorBox.classList.add('hidden');
+          startPromptText.textContent = 'Подключение к микрофону...';
+
           const AudioContextClass = window.AudioContext || window.webkitAudioContext;
           audioCtx = new AudioContextClass();
 
@@ -803,8 +228,8 @@
             await audioCtx.resume();
           }
 
-          // КРИТИЧНО для оперного вокала на телефонах:
-          // отключаем noiseSuppression и autoGainControl, чтобы браузер не подавлял длинные гласные ноты
+          // Запрашиваем чистый вокальный поток без агрессивного браузерного шумоподавления,
+          // которое искажает долгие оперные ноты и съедает обертоны
           let stream;
           try {
             stream = await navigator.mediaDevices.getUserMedia({
@@ -815,76 +240,791 @@
                 channelCount: 1
               }
             });
-          } catch (_) {
-            // Запасной вариант, если браузер не принимает расширенные ограничения
+          } catch (fallbackErr) {
             stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           }
 
           const source = audioCtx.createMediaStreamSource(stream);
-          analyser = audioCtx.createAnalyser();
-          analyser.fftSize = 2048;
-          analyser.smoothingTimeConstant = 0.0;
-          source.connect(analyser);
 
-          timeBuffer = new Float32Array(analyser.fftSize);
+          // 1. Сырой анализатор для оценки спектрального баланса и детекции шипящих согласных (ZCR)
+          rawAnalyser = audioCtx.createAnalyser();
+          rawAnalyser.fftSize = 2048;
+          rawAnalyser.smoothingTimeConstant = 0.0;
+          source.connect(rawAnalyser);
+
+          // 2. Полосовой тракт выделения фундаментального тона f0:
+          //    - Фильтр верхних частот (70 Гц) убирает гул помещения и задувание микрофона
+          //    - Каскад из двух фильтров нижних частот (1500 Гц) полностью отсекает
+          //      высокочастотную энергию шипящих («с», «ш», «щ», «ц», «ф») и певческую форманту (2800 Гц),
+          //      предотвращая ложные срабатывания и скачки на октаву/квинту вверх.
+          const hpFilter = audioCtx.createBiquadFilter();
+          hpFilter.type = 'highpass';
+          hpFilter.frequency.value = 70.0;
+          hpFilter.Q.value = 0.707;
+
+          const lpFilter1 = audioCtx.createBiquadFilter();
+          lpFilter1.type = 'lowpass';
+          lpFilter1.frequency.value = 1500.0;
+          lpFilter1.Q.value = 0.707;
+
+          const lpFilter2 = audioCtx.createBiquadFilter();
+          lpFilter2.type = 'lowpass';
+          lpFilter2.frequency.value = 1500.0;
+          lpFilter2.Q.value = 0.707;
+
+          vocalBandAnalyser = audioCtx.createAnalyser();
+          vocalBandAnalyser.fftSize = 2048;
+          vocalBandAnalyser.smoothingTimeConstant = 0.0;
+
+          source.connect(hpFilter);
+          hpFilter.connect(lpFilter1);
+          lpFilter1.connect(lpFilter2);
+          lpFilter2.connect(vocalBandAnalyser);
+
+          const bufferLen = vocalBandAnalyser.fftSize;
+          rawTimeBuffer = new Float32Array(bufferLen);
+          bandTimeBuffer = new Float32Array(bufferLen);
+          nsdfBuffer = new Float32Array(bufferLen);
+
           isRunning = true;
+          startOverlay.classList.add('hidden-overlay');
+          hud.classList.remove('opacity-0');
 
-          // Скрываем стартовый экран
-          startOverlay.classList.add('opacity-0', 'pointer-events-none');
-          setTimeout(() => {
-            startOverlay.classList.add('hidden');
-          }, 300);
-
-          requestScreenWakeLock();
+          requestAnimationFrame(mainLoop);
         } catch (err) {
-          errorBox.textContent = `Не удалось получить доступ к микрофону: ${err.message || 'разрешите доступ к микрофону в браузере и откройте страницу по HTTPS или localhost.'}`;
-          errorBox.classList.remove('hidden');
+          startPromptText.textContent = 'Нет доступа к микрофону. Разрешите доступ и коснитесь снова.';
+          startPromptText.classList.add('text-rose-400');
         }
       }
 
-      // Запуск микрофона по первому касанию стартового оверлея
-      startOverlay.addEventListener('click', () => {
-        if (!isRunning) {
-          initAudio();
+      startOverlay.addEventListener('click', initAudio);
+      startOverlay.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        initAudio();
+      });
+
+      // Касание самого графика ставит его на паузу / снимает с паузы для удобного разбора спетой фразы
+      canvas.addEventListener('pointerdown', () => {
+        if (!isRunning) return;
+        isPaused = !isPaused;
+        if (isPaused) {
+          pauseBadge.classList.remove('hidden');
+          pauseBadge.classList.add('flex');
+        } else {
+          pauseBadge.classList.add('hidden');
+          pauseBadge.classList.remove('flex');
         }
       });
 
-      // Касание самого графика переключает СТОП-КАДР (Freeze) для удобного разбора спетой ноты
-      canvas.addEventListener('click', () => {
-        if (!isRunning) {
-          initAudio();
+      /**
+       * Выделяет фундаментальную частоту голоса f0 с защитой от шипящих согласных и фонового шума.
+       * Возвращает { freq, clarity } либо null, если звук не является вокальным тоном.
+       */
+      function detectVocalPitch(rawBuf, bandBuf, sampleRate) {
+        const n = bandBuf.length;
+
+        // Шаг 1: Считаем RMS в вокальной полосе, полный RMS и частоту пересечения нуля (ZCR) на сыром сигнале
+        let rawEnergy = 0.0;
+        let bandEnergy = 0.0;
+        let zeroCrossings = 0;
+
+        for (let i = 0; i < n; i++) {
+          const r = rawBuf[i];
+          const b = bandBuf[i];
+          rawEnergy += r * r;
+          bandEnergy += b * b;
+          if (i > 0 && ((rawBuf[i - 1] >= 0 && r < 0) || (rawBuf[i - 1] < 0 && r >= 0))) {
+            zeroCrossings++;
+          }
+        }
+
+        const bandRms = Math.sqrt(bandEnergy / n);
+        const rawRms = Math.sqrt(rawEnergy / n);
+        const zcr = zeroCrossings / n;
+
+        // Порог громкости с гистерезисом
+        const minRms = isVoicedState ? RMS_HOLD_THRESHOLD : RMS_ONSET_THRESHOLD;
+        if (bandRms < minRms) {
+          return null;
+        }
+
+        // Отсечение шипящих согласных (с, ш, щ, ц, ч, ф) и резких вдохов:
+        // У шипящих высокая доля пересечений нуля (ZCR) и энергия сосредоточена выше 1500 Гц
+        if (zcr > MAX_ZCR_VOICED) {
+          return null;
+        }
+        const highFreqEnergy = Math.max(0.0, rawEnergy - bandEnergy);
+        if (bandEnergy > 0 && (highFreqEnergy / bandEnergy) > HF_LF_RATIO_MAX && zcr > 0.11) {
+          return null;
+        }
+
+        // Шаг 2: McLeod Pitch Method (Normalized Square Difference Function - NSDF)
+        // Ограничиваем диапазон задержек (tau) вокальным диапазоном [75 Гц .. 1450 Гц]
+        const minTau = Math.max(2, Math.floor(sampleRate / MAX_VOCAL_FREQ));
+        const maxTau = Math.min(Math.floor(n / 2), Math.ceil(sampleRate / MIN_VOCAL_FREQ));
+
+        // Используем окно анализа W для высокой скорости и точности на мобильных процессорах
+        const W = Math.min(1024, n - maxTau);
+
+        // Предварительный расчёт кумулятивных квадратов для быстрой нормализации NSDF
+        let m0 = 0.0;
+        for (let i = 0; i < W; i++) {
+          m0 += bandBuf[i] * bandBuf[i];
+        }
+
+        let mTau = 0.0;
+        for (let i = minTau; i < minTau + W; i++) {
+          mTau += bandBuf[i] * bandBuf[i];
+        }
+
+        for (let tau = minTau; tau <= maxTau; tau++) {
+          if (tau > minTau) {
+            const prevIdx = tau - 1;
+            const nextIdx = tau - 1 + W;
+            mTau += bandBuf[nextIdx] * bandBuf[nextIdx] - bandBuf[prevIdx] * bandBuf[prevIdx];
+          }
+
+          let acf = 0.0;
+          // Развернутый внутренний цикл автокорреляции
+          let i = 0;
+          const limit = W - 3;
+          for (; i < limit; i += 4) {
+            acf += bandBuf[i] * bandBuf[i + tau] +
+                   bandBuf[i + 1] * bandBuf[i + 1 + tau] +
+                   bandBuf[i + 2] * bandBuf[i + 2 + tau] +
+                   bandBuf[i + 3] * bandBuf[i + 3 + tau];
+          }
+          for (; i < W; i++) {
+            acf += bandBuf[i] * bandBuf[i + tau];
+          }
+
+          const denom = m0 + mTau;
+          nsdfBuffer[tau] = denom > 1e-9 ? (2.0 * acf) / denom : 0.0;
+        }
+
+        // Шаг 3: Поиск первого ключевого максимума после пересечения нуля в положительную область
+        // Это гарантирует выбор фундаментальной частоты f0, а не второй гармоники (октавы)
+        let tau = minTau;
+        // Сначала дожидаемся спада от начального пика tau=0 ниже 0 (если ещё не ниже)
+        while (tau <= maxTau && nsdfBuffer[tau] > 0.0) {
+          tau++;
+        }
+        // Теперь ищем положительные купола NSDF
+        const peakTaus = [];
+        const peakVals = [];
+        let globalMaxVal = -1.0;
+
+        while (tau <= maxTau) {
+          // Пропускаем отрицательную зону
+          while (tau <= maxTau && nsdfBuffer[tau] <= 0.0) {
+            tau++;
+          }
+          if (tau > maxTau) break;
+
+          let localMaxTau = tau;
+          let localMaxVal = nsdfBuffer[tau];
+
+          while (tau <= maxTau && nsdfBuffer[tau] > 0.0) {
+            if (nsdfBuffer[tau] > localMaxVal) {
+              localMaxVal = nsdfBuffer[tau];
+              localMaxTau = tau;
+            }
+            tau++;
+          }
+
+          peakTaus.push(localMaxTau);
+          peakVals.push(localMaxVal);
+          if (localMaxVal > globalMaxVal) {
+            globalMaxVal = localMaxVal;
+          }
+        }
+
+        if (peakTaus.length === 0 || globalMaxVal < NSDF_CLARITY_THRESHOLD) {
+          return null;
+        }
+
+        // Выбираем первый пик, преодолевший порог 0.88 от абсолютного максимума (критерий McLeod k=0.88)
+        const selectionThreshold = Math.max(NSDF_CLARITY_THRESHOLD, 0.88 * globalMaxVal);
+        let chosenTau = peakTaus[0];
+        let chosenClarity = peakVals[0];
+
+        for (let p = 0; p < peakTaus.length; p++) {
+          if (peakVals[p] >= selectionThreshold) {
+            chosenTau = peakTaus[p];
+            chosenClarity = peakVals[p];
+            break;
+          }
+        }
+
+        // Шаг 4: Параболическая интерполяция для суб-сэмпловой точности (точность до долей цента)
+        let refinedTau = chosenTau;
+        if (chosenTau > minTau && chosenTau < maxTau) {
+          const y1 = nsdfBuffer[chosenTau - 1];
+          const y2 = nsdfBuffer[chosenTau];
+          const y3 = nsdfBuffer[chosenTau + 1];
+          const denom = 2.0 * (2.0 * y2 - y1 - y3);
+          if (Math.abs(denom) > 1e-9) {
+            const delta = (y3 - y1) / denom;
+            if (Math.abs(delta) < 1.0) {
+              refinedTau = chosenTau + delta;
+            }
+          }
+        }
+
+        const freq = sampleRate / refinedTau;
+        if (freq < MIN_VOCAL_FREQ || freq > MAX_VOCAL_FREQ) {
+          return null;
+        }
+
+        return { freq, clarity: chosenClarity };
+      }
+
+      /**
+       * Пересчитывает для последних точек в буфере:
+       * 1) Центральную линию тона (Core Pitch) без фазового сдвига (симметричное окно ~0.22с),
+       *    чтобы линия проходила ровно посередине волны вибрато.
+       * 2) Верхнюю и нижнюю огибающие широты вибрато (Envelope).
+       * 3) Численные показатели периодичности (Гц) и широты (±пт).
+       */
+      function updateVibratoAnalytics() {
+        if (historyCount === 0) return;
+
+        // Окно сглаживания центра тона: ~10 кадров в прошлое и ~10 в будущее (~0.33 сек полный период, ~1.8 цикла вибрато)
+        const halfWindow = 10;
+        const envHalfWindow = 12;
+        const updateSpan = Math.min(historyCount, 32);
+
+        for (let offset = 0; offset < updateSpan; offset++) {
+          const idx = (historyHead - 1 - offset + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+          if (!historyVoiced[idx]) continue;
+
+          // Вычисляем симметричный взвешенный центр тона (Core Pitch)
+          let sumWeightedMidi = 0.0;
+          let sumWeights = 0.0;
+          const baseMidi = historyMidi[idx];
+
+          for (let k = -halfWindow; k <= halfWindow; k++) {
+            const posFromLatest = offset - k;
+            if (posFromLatest < 0 || posFromLatest >= historyCount) continue;
+
+            const nIdx = (historyHead - 1 - posFromLatest + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+            if (!historyVoiced[nIdx]) continue;
+
+            const m = historyMidi[nIdx];
+            // Не смешиваем разные ноты при быстром стаккато или скачке на большой интервал (> 2.2 пт)
+            if (Math.abs(m - baseMidi) > 2.2) continue;
+
+            // Косинусное окно Ханна
+            const w = 0.5 * (1.0 + Math.cos((Math.PI * k) / (halfWindow + 1)));
+            sumWeightedMidi += m * w;
+            sumWeights += w;
+          }
+
+          const centerMidi = sumWeights > 0 ? sumWeightedMidi / sumWeights : baseMidi;
+          historyCenter[idx] = centerMidi;
+
+          // Вычисляем локальную широту колебаний вокруг центра для отрисовки коридора (огибающей) вибрато
+          let sumSqDev = 0.0;
+          let devCount = 0;
+          for (let k = -envHalfWindow; k <= envHalfWindow; k++) {
+            const posFromLatest = offset - k;
+            if (posFromLatest < 0 || posFromLatest >= historyCount) continue;
+            const nIdx = (historyHead - 1 - posFromLatest + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+            if (!historyVoiced[nIdx]) continue;
+            const m = historyMidi[nIdx];
+            if (Math.abs(m - centerMidi) > 2.2) continue;
+
+            const diff = m - historyCenter[nIdx];
+            sumSqDev += diff * diff;
+            devCount++;
+          }
+
+          // Для синусоиды амплитуда пика A = sqrt(2) * RMS
+          const rmsDev = devCount > 2 ? Math.sqrt(sumSqDev / devCount) : 0.0;
+          const amp = Math.min(1.8, rmsDev * 1.4142);
+          historyEnvUpper[idx] = centerMidi + amp;
+          historyEnvLower[idx] = centerMidi - amp;
+        }
+
+        // Вычисляем частоту (Гц) и широту (±пт) вибрато за последние ~0.95 секунды непрерывного звука
+        const analysisSamples = Math.min(historyCount, 58);
+        let voicedRun = 0;
+        let sumSqMod = 0.0;
+
+        // Собираем массив отклонений от центра тона в хронологическом порядке
+        const modWave = [];
+        const modTimes = [];
+
+        const latestIdx = (historyHead - 1 + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+        const latestCenter = historyCenter[latestIdx];
+
+        for (let i = 0; i < analysisSamples; i++) {
+          const idx = (historyHead - 1 - i + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+          if (!historyVoiced[idx]) break;
+          // Проверяем, что певец держит одну и ту же ноту (центр не ушёл дальше чем на 1.2 полутона)
+          if (Math.abs(historyCenter[idx] - latestCenter) > 1.2) break;
+
+          const delta = historyMidi[idx] - historyCenter[idx];
+          modWave.unshift(delta);
+          modTimes.unshift(historyTime[idx]);
+          sumSqMod += delta * delta;
+          voicedRun++;
+        }
+
+        if (voicedRun < 20) {
+          // Слишком короткая нота для оценки установившегося вибрато
+          if (!isVoicedState) {
+            rateDisplay.textContent = '— Гц';
+            extentDisplay.textContent = '±— пт';
+          }
           return;
         }
-        isFrozen = !isFrozen;
-        if (isFrozen) {
-          freezeTime = performance.now() / 1000;
-          freezeBadge.classList.remove('hidden');
+
+        // Широта (амплитуда отклонения от центра в полутонах)
+        const rmsMod = Math.sqrt(sumSqMod / voicedRun);
+        const halfExtentSemitones = rmsMod * 1.4142;
+
+        // Детекция пересечений нуля с гистерезисом для подсчёта частоты вибрато (Гц)
+        const hysteresis = 0.045; // ~4.5 цента порог против микро-дрожания на прямом звуке
+        const crossings = [];
+        let state = 0; // 1 = выше порога, -1 = ниже порога
+
+        for (let i = 1; i < modWave.length; i++) {
+          const val = modWave[i];
+          const prev = modWave[i - 1];
+
+          if (state <= 0 && val > hysteresis) {
+            // Линейная интерполяция момента пересечения 0 снизу вверх
+            const frac = (0.0 - prev) / (val - prev + 1e-9);
+            const tCross = modTimes[i - 1] + Math.max(0, Math.min(1, frac)) * (modTimes[i] - modTimes[i - 1]);
+            if (state === -1) {
+              crossings.push(tCross);
+            }
+            state = 1;
+          } else if (state >= 0 && val < -hysteresis) {
+            state = -1;
+          }
+        }
+
+        // Классическое вокальное вибрато лежит в пределах 3.5 – 8.8 Гц
+        if (crossings.length >= 2 && halfExtentSemitones >= 0.08) {
+          const totalTime = crossings[crossings.length - 1] - crossings[0];
+          const numCycles = crossings.length - 1;
+          const rateHz = numCycles / totalTime;
+
+          if (rateHz >= 3.3 && rateHz <= 9.2) {
+            rateDisplay.textContent = rateHz.toFixed(1) + ' Гц';
+            extentDisplay.textContent = '±' + halfExtentSemitones.toFixed(2) + ' пт';
+          } else {
+            rateDisplay.textContent = '— Гц';
+            extentDisplay.textContent = '±' + halfExtentSemitones.toFixed(2) + ' пт';
+          }
         } else {
-          prevFrameTime = performance.now() / 1000;
-          freezeBadge.classList.add('hidden');
+          // Прямой тон (senza vibrato)
+          rateDisplay.textContent = 'прямой';
+          extentDisplay.textContent = '±' + halfExtentSemitones.toFixed(2) + ' пт';
         }
-      });
-
-      // Главный цикл 60–120 FPS
-      function animate(nowMs) {
-        requestAnimationFrame(animate);
-
-        const nowSec = nowMs / 1000;
-
-        if (isRunning && !isFrozen && analyser && timeBuffer) {
-          analyser.getFloatTimeDomainData(timeBuffer);
-          const detection = detectPitchMPM(timeBuffer, audioCtx.sampleRate);
-          processPitchSample(nowSec, detection);
-          updateHudDOM(nowMs);
-        }
-
-        const renderTime = isFrozen ? freezeTime : nowSec;
-        renderUnifiedGraph(renderTime);
       }
 
-      window.onload = () => {
-        requestAnimationFrame(animate);
-      };
+      function processAudioFrame(nowSec) {
+        rawAnalyser.getFloatTimeDomainData(rawTimeBuffer);
+        vocalBandAnalyser.getFloatTimeDomainData(bandTimeBuffer);
+
+        const detection = detectVocalPitch(rawTimeBuffer, bandTimeBuffer, audioCtx.sampleRate);
+
+        let frameVoiced = false;
+        let frameMidi = 0.0;
+
+        if (detection !== null) {
+          const rawMidi = freqToMidi(detection.freq);
+
+          // Медианный фильтр из 3 кадров подавляет одиночные выбросы на переходных процессах (согласная -> гласная)
+          recentMidiWindow.push(rawMidi);
+          if (recentMidiWindow.length > 3) recentMidiWindow.shift();
+
+          const filteredMidi = recentMidiWindow.length === 3
+            ? medianOf3(recentMidiWindow[0], recentMidiWindow[1], recentMidiWindow[2])
+            : rawMidi;
+
+          // Защита от нефизиологичного мгновенного скачка за 1 кадр (16 мс)
+          if (lastAcceptedMidi !== null && isVoicedState) {
+            const jump = Math.abs(filteredMidi - lastAcceptedMidi);
+            if (jump > MAX_SEMITONE_JUMP_PER_FRAME) {
+              // Требуем подтверждения в следующем кадре, если это реальный вокальный скачок на большой интервал
+              lastAcceptedMidi = filteredMidi;
+              return;
+            }
+          }
+
+          lastAcceptedMidi = filteredMidi;
+          if (smoothedInstantMidi === null || !isVoicedState) {
+            smoothedInstantMidi = filteredMidi;
+          } else {
+            // Лёгкое сглаживание (коэффициент 0.65) сохраняет всю форму вибрато 5-7 Гц, убирая лишь цифровой джиттер
+            smoothedInstantMidi += 0.65 * (filteredMidi - smoothedInstantMidi);
+          }
+
+          frameVoiced = true;
+          frameMidi = smoothedInstantMidi;
+          isVoicedState = true;
+          unvoicedFramesCount = 0;
+        } else {
+          unvoicedFramesCount++;
+          // Краткий допуск в 2 кадра (~32 мс) при просадке фазы, затем чистый разрыв линии
+          if (unvoicedFramesCount > 2) {
+            isVoicedState = false;
+            recentMidiWindow.length = 0;
+            smoothedInstantMidi = null;
+          } else if (isVoicedState && smoothedInstantMidi !== null) {
+            frameVoiced = true;
+            frameMidi = smoothedInstantMidi;
+          }
+        }
+
+        // Записываем точку в кольцевой буфер
+        historyTime[historyHead] = nowSec;
+        historyMidi[historyHead] = frameMidi;
+        historyCenter[historyHead] = frameMidi;
+        historyEnvUpper[historyHead] = frameMidi;
+        historyEnvLower[historyHead] = frameMidi;
+        historyVoiced[historyHead] = frameVoiced ? 1 : 0;
+
+        historyHead = (historyHead + 1) % BUFFER_CAPACITY;
+        if (historyCount < BUFFER_CAPACITY) historyCount++;
+
+        updateVibratoAnalytics();
+
+        // Обновляем плавное положение камеры и верхний индикатор ноты
+        if (frameVoiced) {
+          const latestIdx = (historyHead - 1 + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+          const coreMidi = historyCenter[latestIdx];
+          targetCameraMidi = coreMidi;
+
+          // Определяем звучащую ноту по ЦЕНТРУ вибрато (а не по мгновенным пикам колебаний)
+          const nearestNoteMidi = Math.round(coreMidi);
+          const centsOffset = Math.round((coreMidi - nearestNoteMidi) * 100);
+          const centerFreq = midiToFreq(coreMidi);
+
+          noteDisplay.textContent = midiToNoteLabel(nearestNoteMidi);
+          freqDisplay.textContent = centerFreq.toFixed(1) + ' Гц';
+          const sign = centsOffset > 0 ? '+' : '';
+          centsDisplay.textContent = `центр ${sign}${centsOffset} ц`;
+
+          // Цветовая индикация точности интонирования центра ноты
+          if (Math.abs(centsOffset) <= 18) {
+            centsDisplay.className = 'mono-num text-[11px] sm:text-xs text-emerald-400 leading-tight';
+          } else if (Math.abs(centsOffset) <= 35) {
+            centsDisplay.className = 'mono-num text-[11px] sm:text-xs text-amber-400 leading-tight';
+          } else {
+            centsDisplay.className = 'mono-num text-[11px] sm:text-xs text-rose-400 leading-tight';
+          }
+        }
+
+        // Инерционное следование вертикальной оси графика за центром голоса
+        // Низкий коэффициент (0.045) гарантирует, что сетка нот стоит неподвижно во время вибрато
+        const diffCam = targetCameraMidi - cameraCenterMidi;
+        if (Math.abs(diffCam) > 2.2) {
+          // При переходе в другой регистр камера быстрее догоняет голос
+          cameraCenterMidi += diffCam * 0.14;
+        } else {
+          cameraCenterMidi += diffCam * 0.035;
+        }
+      }
+
+      function renderGraph(nowSec) {
+        const w = viewWidth;
+        const h = viewHeight;
+
+        // 1. Очистка фона глубоким студийным цветом
+        ctx.fillStyle = '#06070a';
+        ctx.fillRect(0, 0, w, h);
+
+        // Геометрия графика: справа оставляем узкую колонку для читаемых подписей нот и шкалы полутонов
+        const rightAxisWidth = w < 500 ? 52 : 64;
+        const plotRight = w - rightAxisWidth;
+        const topPad = 68;
+        const bottomPad = 24;
+        const plotHeight = Math.max(100, h - topPad - bottomPad);
+        const plotCenterY = topPad + plotHeight * 0.5;
+        const pixelsPerSemitone = plotHeight / VISIBLE_SEMITONE_SPAN;
+
+        const midiToY = (midi) => plotCenterY - (midi - cameraCenterMidi) * pixelsPerSemitone;
+        const timeToX = (t) => plotRight - ((nowSec - t) / HISTORY_SECONDS) * plotRight;
+
+        // Определяем активную целевую ноту (по центру вибрато)
+        let activeNoteInt = null;
+        if (historyCount > 0) {
+          const latestIdx = (historyHead - 1 + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+          if (historyVoiced[latestIdx]) {
+            activeNoteInt = Math.round(historyCenter[latestIdx]);
+          }
+        }
+
+        // 2. Вертикальная сетка времени (Периодичность вибрато):
+        //    - Основные линии каждую 1.0 секунду
+        //    - Тонкие деления каждые 0.2 секунды (200 мс = 1 период эталонного вибрато 5 Гц)
+        const firstSubTick = Math.floor((nowSec - HISTORY_SECONDS) * 5) / 5;
+        ctx.lineWidth = 1;
+
+        for (let t = firstSubTick; t <= nowSec; t += 0.2) {
+          const x = timeToX(t);
+          if (x < 0 || x > plotRight) continue;
+
+          const isWholeSecond = Math.abs(t - Math.round(t)) < 0.02;
+          ctx.strokeStyle = isWholeSecond ? 'rgba(148, 163, 184, 0.11)' : 'rgba(148, 163, 184, 0.035)';
+          ctx.beginPath();
+          ctx.moveTo(x, topPad * 0.6);
+          ctx.lineTo(x, h);
+          ctx.stroke();
+
+          if (isWholeSecond) {
+            const secAgo = Math.round(nowSec - t);
+            if (secAgo > 0 && secAgo <= HISTORY_SECONDS) {
+              ctx.fillStyle = 'rgba(100, 116, 139, 0.45)';
+              ctx.font = '500 10px "JetBrains Mono", monospace';
+              ctx.textAlign = 'left';
+              ctx.fillText(`-${secAgo}с`, x + 4, h - 8);
+            }
+          }
+        }
+
+        // 3. Горизонтальная сетка нот и полутоновых интервалов (Широта вибрато):
+        const minVisibleMidi = Math.floor(cameraCenterMidi - VISIBLE_SEMITONE_SPAN * 0.65);
+        const maxVisibleMidi = Math.ceil(cameraCenterMidi + VISIBLE_SEMITONE_SPAN * 0.65);
+
+        for (let m = minVisibleMidi; m <= maxVisibleMidi; m++) {
+          const y = midiToY(m);
+          if (y < 20 || y > h - 10) continue;
+
+          const isCurrentTarget = (activeNoteInt === m);
+          const blackKey = isBlackKey(m);
+
+          // Мягкая подсветка полосы активной ноты (±0.5 полутона вокруг ноты)
+          if (isCurrentTarget) {
+            const bandHalf = pixelsPerSemitone * 0.5;
+            const grad = ctx.createLinearGradient(0, y - bandHalf, 0, y + bandHalf);
+            grad.addColorStop(0, 'rgba(34, 211, 238, 0.01)');
+            grad.addColorStop(0.5, 'rgba(34, 211, 238, 0.075)');
+            grad.addColorStop(1, 'rgba(34, 211, 238, 0.01)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, y - bandHalf, plotRight, bandHalf * 2);
+
+            // Пунктирные микро-линии ±0.5 полутона (±50 центов) для наглядного чтения широты вибрато
+            ctx.save();
+            ctx.setLineDash([3, 5]);
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.22)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, y - bandHalf);
+            ctx.lineTo(plotRight, y - bandHalf);
+            ctx.moveTo(0, y + bandHalf);
+            ctx.lineTo(plotRight, y + bandHalf);
+            ctx.stroke();
+            ctx.restore();
+          }
+
+          // Основная горизонтальная линия тона
+          ctx.strokeStyle = isCurrentTarget
+            ? 'rgba(34, 211, 238, 0.45)'
+            : (blackKey ? 'rgba(148, 163, 184, 0.07)' : 'rgba(148, 163, 184, 0.14)');
+          ctx.lineWidth = isCurrentTarget ? 1.5 : 1.0;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(plotRight, y);
+          ctx.stroke();
+        }
+
+        // 4. Отрисовка вокальной траектории, коридора широты и центральной линии стабильности
+        if (historyCount > 1) {
+          // Разбиваем историю на непрерывные вокальные сегменты (фразы)
+          const segments = [];
+          let currentSeg = [];
+
+          for (let i = historyCount - 1; i >= 0; i--) {
+            const idx = (historyHead - 1 - i + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+            const t = historyTime[idx];
+            if (nowSec - t > HISTORY_SECONDS + 0.15) continue;
+
+            if (historyVoiced[idx]) {
+              const x = timeToX(t);
+              // Если между соседними точками скачок > 3 полутонов, начинаем новый визуальный сегмент
+              if (currentSeg.length > 0) {
+                const prevPt = currentSeg[currentSeg.length - 1];
+                if (Math.abs(historyMidi[idx] - prevPt.midi) > 3.0) {
+                  if (currentSeg.length > 1) segments.push(currentSeg);
+                  currentSeg = [];
+                }
+              }
+              currentSeg.push({
+                x,
+                yPitch: midiToY(historyMidi[idx]),
+                yCenter: midiToY(historyCenter[idx]),
+                yUpper: midiToY(historyEnvUpper[idx]),
+                yLower: midiToY(historyEnvLower[idx]),
+                midi: historyMidi[idx],
+                centerMidi: historyCenter[idx]
+              });
+            } else {
+              if (currentSeg.length > 1) segments.push(currentSeg);
+              currentSeg = [];
+            }
+          }
+          if (currentSeg.length > 1) segments.push(currentSeg);
+
+          // Слой 4А: Полупрозрачный коридор огибающей широты вибрато (Envelope Ribbon)
+          for (let s = 0; s < segments.length; s++) {
+            const seg = segments[s];
+            if (seg.length < 4) continue;
+
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.13)';
+            ctx.beginPath();
+            ctx.moveTo(seg[0].x, seg[0].yUpper);
+            for (let i = 1; i < seg.length; i++) {
+              ctx.lineTo(seg[i].x, seg[i].yUpper);
+            }
+            for (let i = seg.length - 1; i >= 0; i--) {
+              ctx.lineTo(seg[i].x, seg[i].yLower);
+            }
+            ctx.closePath();
+            ctx.fill();
+          }
+
+          // Слой 4Б: Осевая линия центра тона (Стабильность вибрато / Core Pitch Line)
+          // Показывает певцу, держит ли он ровную опору тона внутри вибрато
+          ctx.save();
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = 'rgba(248, 250, 252, 0.42)';
+          ctx.setLineDash([4, 4]);
+          for (let s = 0; s < segments.length; s++) {
+            const seg = segments[s];
+            if (seg.length < 3) continue;
+            ctx.beginPath();
+            ctx.moveTo(seg[0].x, seg[0].yCenter);
+            for (let i = 1; i < seg.length; i++) {
+              ctx.lineTo(seg[i].x, seg[i].yCenter);
+            }
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          // Слой 4В: Главная живая волна высоты голоса со сглаживанием кривыми Безье
+          ctx.save();
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+
+          for (let s = 0; s < segments.length; s++) {
+            const seg = segments[s];
+
+            // Мягкое свечение основной волны
+            ctx.strokeStyle = 'rgba(34, 211, 238, 0.24)';
+            ctx.lineWidth = 6.0;
+            ctx.beginPath();
+            ctx.moveTo(seg[0].x, seg[0].yPitch);
+            for (let i = 1; i < seg.length - 1; i++) {
+              const xc = (seg[i].x + seg[i + 1].x) * 0.5;
+              const yc = (seg[i].yPitch + seg[i + 1].yPitch) * 0.5;
+              ctx.quadraticCurveTo(seg[i].x, seg[i].yPitch, xc, yc);
+            }
+            ctx.lineTo(seg[seg.length - 1].x, seg[seg.length - 1].yPitch);
+            ctx.stroke();
+
+            // Чёткое ядро волны
+            ctx.strokeStyle = '#22d3ee';
+            ctx.lineWidth = 2.4;
+            ctx.beginPath();
+            ctx.moveTo(seg[0].x, seg[0].yPitch);
+            for (let i = 1; i < seg.length - 1; i++) {
+              const xc = (seg[i].x + seg[i + 1].x) * 0.5;
+              const yc = (seg[i].yPitch + seg[i + 1].yPitch) * 0.5;
+              ctx.quadraticCurveTo(seg[i].x, seg[i].yPitch, xc, yc);
+            }
+            ctx.lineTo(seg[seg.length - 1].x, seg[seg.length - 1].yPitch);
+            ctx.stroke();
+          }
+          ctx.restore();
+
+          // Слой 4Г: Световая точка текущего мгновенного положения голоса на правом краю графика
+          const latestIdx = (historyHead - 1 + BUFFER_CAPACITY) % BUFFER_CAPACITY;
+          if (historyVoiced[latestIdx]) {
+            const curY = midiToY(historyMidi[latestIdx]);
+            const centerY = midiToY(historyCenter[latestIdx]);
+
+            // Маркер центра вибрато на оси
+            ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
+            ctx.beginPath();
+            ctx.arc(plotRight, centerY, 3.0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Светящийся курсор мгновенной высоты тона
+            ctx.fillStyle = 'rgba(34, 211, 238, 0.3)';
+            ctx.beginPath();
+            ctx.arc(plotRight, curY, 9.0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = '#67e8f9';
+            ctx.beginPath();
+            ctx.arc(plotRight, curY, 4.0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // 5. Правая колонка шкалы нот (всегда чёткая поверх линий графика)
+        ctx.fillStyle = 'rgba(6, 7, 10, 0.88)';
+        ctx.fillRect(plotRight, 0, rightAxisWidth, h);
+
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.16)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(plotRight, 0);
+        ctx.lineTo(plotRight, h);
+        ctx.stroke();
+
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        for (let m = minVisibleMidi; m <= maxVisibleMidi; m++) {
+          const y = midiToY(m);
+          if (y < 24 || y > h - 14) continue;
+
+          const isCurrentTarget = (activeNoteInt === m);
+          const blackKey = isBlackKey(m);
+          const label = midiToNoteLabel(m);
+
+          if (isCurrentTarget) {
+            // Плашка звучащей ноты на вертикальной шкале
+            ctx.fillStyle = 'rgba(34, 211, 238, 0.16)';
+            ctx.beginPath();
+            ctx.roundRect(plotRight + 5, y - 11, rightAxisWidth - 10, 22, 6);
+            ctx.fill();
+
+            ctx.fillStyle = '#22d3ee';
+            ctx.font = '600 13px "JetBrains Mono", monospace';
+            ctx.fillText(label, plotRight + 11, y);
+          } else {
+            ctx.fillStyle = blackKey ? 'rgba(148, 163, 184, 0.38)' : 'rgba(203, 213, 225, 0.72)';
+            ctx.font = blackKey ? '400 11px "JetBrains Mono", monospace' : '500 12px "JetBrains Mono", monospace';
+            ctx.fillText(label, plotRight + 11, y);
+          }
+        }
+      }
+
+      let lastRenderTimestamp = 0;
+
+      function mainLoop(timestamp) {
+        if (!isRunning) return;
+        requestAnimationFrame(mainLoop);
+
+        if (isPaused) return;
+
+        const nowSec = timestamp * 0.001;
+        // Фиксированный шаг дискретизации огибающей (~60 Гц)
+        if (timestamp - lastRenderTimestamp >= 14) {
+          lastRenderTimestamp = timestamp;
+          processAudioFrame(nowSec);
+        }
+
+        renderGraph(nowSec);
+      }
     })();
   </script>
 </body>
